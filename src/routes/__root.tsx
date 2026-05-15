@@ -51,8 +51,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:title", content: "LendPro — Loan Management & Collection Monitoring System" },
       { property: "og:description", content: "A clean, professional loan management and collection monitoring system for finance and lending companies." },
       { name: "twitter:description", content: "A clean, professional loan management and collection monitoring system for finance and lending companies." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1fb7c13b-9787-48fa-9a25-98c86d11d2f3/id-preview-13c527d2--b110fd99-0e93-4655-a154-41392510b2d0.lovable.app-1778812256037.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1fb7c13b-9787-48fa-9a25-98c86d11d2f3/id-preview-13c527d2--b110fd99-0e93-4655-a154-41392510b2d0.lovable.app-1778812256037.png" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
