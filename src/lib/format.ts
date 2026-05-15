@@ -1,0 +1,21 @@
+export function formatPHP(n: number, opts: { compact?: boolean } = {}) {
+  if (opts.compact && Math.abs(n) >= 1000) {
+    return "₱" + new Intl.NumberFormat("en-PH", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+  }
+  return "₱" + new Intl.NumberFormat("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
+export function formatDate(d: Date | string, opts?: Intl.DateTimeFormatOptions) {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return new Intl.DateTimeFormat("en-PH", opts ?? { year: "numeric", month: "short", day: "numeric" }).format(date);
+}
+
+export function formatNumber(n: number) {
+  return new Intl.NumberFormat("en-PH").format(n);
+}
+
+export function addDays(d: Date | string, days: number) {
+  const date = typeof d === "string" ? new Date(d) : new Date(d);
+  date.setDate(date.getDate() + days);
+  return date;
+}
