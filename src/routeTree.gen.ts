@@ -12,6 +12,17 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppUsersRouteImport } from './routes/_app/users'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppScheduleRouteImport } from './routes/_app/schedule'
+import { Route as AppReportsRouteImport } from './routes/_app/reports'
+import { Route as AppPaymentsRouteImport } from './routes/_app/payments'
+import { Route as AppLoansRouteImport } from './routes/_app/loans'
+import { Route as AppCollectorsRouteImport } from './routes/_app/collectors'
+import { Route as AppClientsRouteImport } from './routes/_app/clients'
+import { Route as AppAuditRouteImport } from './routes/_app/audit'
+import { Route as AppCollectorsIdRouteImport } from './routes/_app/collectors.$id'
+import { Route as AppClientsClientIdRouteImport } from './routes/_app/clients.$clientId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -27,27 +38,156 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppUsersRoute = AppUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppScheduleRoute = AppScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPaymentsRoute = AppPaymentsRouteImport.update({
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLoansRoute = AppLoansRouteImport.update({
+  id: '/loans',
+  path: '/loans',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCollectorsRoute = AppCollectorsRouteImport.update({
+  id: '/collectors',
+  path: '/collectors',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppClientsRoute = AppClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuditRoute = AppAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCollectorsIdRoute = AppCollectorsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppCollectorsRoute,
+} as any)
+const AppClientsClientIdRoute = AppClientsClientIdRouteImport.update({
+  id: '/$clientId',
+  path: '/$clientId',
+  getParentRoute: () => AppClientsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/audit': typeof AppAuditRoute
+  '/clients': typeof AppClientsRouteWithChildren
+  '/collectors': typeof AppCollectorsRouteWithChildren
+  '/loans': typeof AppLoansRoute
+  '/payments': typeof AppPaymentsRoute
+  '/reports': typeof AppReportsRoute
+  '/schedule': typeof AppScheduleRoute
+  '/settings': typeof AppSettingsRoute
+  '/users': typeof AppUsersRoute
+  '/clients/$clientId': typeof AppClientsClientIdRoute
+  '/collectors/$id': typeof AppCollectorsIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/audit': typeof AppAuditRoute
+  '/clients': typeof AppClientsRouteWithChildren
+  '/collectors': typeof AppCollectorsRouteWithChildren
+  '/loans': typeof AppLoansRoute
+  '/payments': typeof AppPaymentsRoute
+  '/reports': typeof AppReportsRoute
+  '/schedule': typeof AppScheduleRoute
+  '/settings': typeof AppSettingsRoute
+  '/users': typeof AppUsersRoute
   '/': typeof AppIndexRoute
+  '/clients/$clientId': typeof AppClientsClientIdRoute
+  '/collectors/$id': typeof AppCollectorsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/audit': typeof AppAuditRoute
+  '/_app/clients': typeof AppClientsRouteWithChildren
+  '/_app/collectors': typeof AppCollectorsRouteWithChildren
+  '/_app/loans': typeof AppLoansRoute
+  '/_app/payments': typeof AppPaymentsRoute
+  '/_app/reports': typeof AppReportsRoute
+  '/_app/schedule': typeof AppScheduleRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/users': typeof AppUsersRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/clients/$clientId': typeof AppClientsClientIdRoute
+  '/_app/collectors/$id': typeof AppCollectorsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/audit'
+    | '/clients'
+    | '/collectors'
+    | '/loans'
+    | '/payments'
+    | '/reports'
+    | '/schedule'
+    | '/settings'
+    | '/users'
+    | '/clients/$clientId'
+    | '/collectors/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/'
-  id: '__root__' | '/_app' | '/login' | '/_app/'
+  to:
+    | '/login'
+    | '/audit'
+    | '/clients'
+    | '/collectors'
+    | '/loans'
+    | '/payments'
+    | '/reports'
+    | '/schedule'
+    | '/settings'
+    | '/users'
+    | '/'
+    | '/clients/$clientId'
+    | '/collectors/$id'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/audit'
+    | '/_app/clients'
+    | '/_app/collectors'
+    | '/_app/loans'
+    | '/_app/payments'
+    | '/_app/reports'
+    | '/_app/schedule'
+    | '/_app/settings'
+    | '/_app/users'
+    | '/_app/'
+    | '/_app/clients/$clientId'
+    | '/_app/collectors/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -78,14 +218,133 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/users': {
+      id: '/_app/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof AppUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/schedule': {
+      id: '/_app/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof AppScheduleRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports': {
+      id: '/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/payments': {
+      id: '/_app/payments'
+      path: '/payments'
+      fullPath: '/payments'
+      preLoaderRoute: typeof AppPaymentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/loans': {
+      id: '/_app/loans'
+      path: '/loans'
+      fullPath: '/loans'
+      preLoaderRoute: typeof AppLoansRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/collectors': {
+      id: '/_app/collectors'
+      path: '/collectors'
+      fullPath: '/collectors'
+      preLoaderRoute: typeof AppCollectorsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/clients': {
+      id: '/_app/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof AppClientsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/audit': {
+      id: '/_app/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AppAuditRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/collectors/$id': {
+      id: '/_app/collectors/$id'
+      path: '/$id'
+      fullPath: '/collectors/$id'
+      preLoaderRoute: typeof AppCollectorsIdRouteImport
+      parentRoute: typeof AppCollectorsRoute
+    }
+    '/_app/clients/$clientId': {
+      id: '/_app/clients/$clientId'
+      path: '/$clientId'
+      fullPath: '/clients/$clientId'
+      preLoaderRoute: typeof AppClientsClientIdRouteImport
+      parentRoute: typeof AppClientsRoute
+    }
   }
 }
 
+interface AppClientsRouteChildren {
+  AppClientsClientIdRoute: typeof AppClientsClientIdRoute
+}
+
+const AppClientsRouteChildren: AppClientsRouteChildren = {
+  AppClientsClientIdRoute: AppClientsClientIdRoute,
+}
+
+const AppClientsRouteWithChildren = AppClientsRoute._addFileChildren(
+  AppClientsRouteChildren,
+)
+
+interface AppCollectorsRouteChildren {
+  AppCollectorsIdRoute: typeof AppCollectorsIdRoute
+}
+
+const AppCollectorsRouteChildren: AppCollectorsRouteChildren = {
+  AppCollectorsIdRoute: AppCollectorsIdRoute,
+}
+
+const AppCollectorsRouteWithChildren = AppCollectorsRoute._addFileChildren(
+  AppCollectorsRouteChildren,
+)
+
 interface AppRouteChildren {
+  AppAuditRoute: typeof AppAuditRoute
+  AppClientsRoute: typeof AppClientsRouteWithChildren
+  AppCollectorsRoute: typeof AppCollectorsRouteWithChildren
+  AppLoansRoute: typeof AppLoansRoute
+  AppPaymentsRoute: typeof AppPaymentsRoute
+  AppReportsRoute: typeof AppReportsRoute
+  AppScheduleRoute: typeof AppScheduleRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppUsersRoute: typeof AppUsersRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAuditRoute: AppAuditRoute,
+  AppClientsRoute: AppClientsRouteWithChildren,
+  AppCollectorsRoute: AppCollectorsRouteWithChildren,
+  AppLoansRoute: AppLoansRoute,
+  AppPaymentsRoute: AppPaymentsRoute,
+  AppReportsRoute: AppReportsRoute,
+  AppScheduleRoute: AppScheduleRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppUsersRoute: AppUsersRoute,
   AppIndexRoute: AppIndexRoute,
 }
 
