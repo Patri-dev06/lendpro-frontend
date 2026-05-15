@@ -67,6 +67,10 @@ function AdminDashboard() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
   const totalOutstanding = loans.reduce((s, l) => s + l.currentBalance, 0);
+  const totalReceivable = loans.reduce((s, l) => s + l.totalReceivable, 0);
+  const totalCollected = totalReceivable - totalOutstanding;
+  const collectionEfficiency = Math.round((totalCollected / totalReceivable) * 100);
+
   const counts = useMemo(() => ({
     active: loans.filter((l) => l.status !== "paid").length,
     newL: clients.filter((c) => c.type === "new").length,
@@ -103,6 +107,8 @@ function AdminDashboard() {
           </Button>
         }
       />
+
+      <CollectionEfficiencyBanner rate={collectionEfficiency} collected={totalCollected} receivable={totalReceivable} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <StatCard label="Active Borrowers" value={String(counts.active)} icon={Users} hint="across all collectors" trend={4} />
@@ -236,6 +242,7 @@ function CollectorDashboard() {
         subtitle={`${me.area} route · ${myClients.length} assigned borrowers`}
         actions={<Button className="bg-primary text-primary-foreground hover:bg-primary-glow">Start route</Button>}
       />
+      <CollectionEfficiencyBanner rate={Math.round((me.actual / me.expected) * 100)} collected={me.actual} receivable={me.expected} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Assigned Borrowers" value={String(me.assigned)} icon={Users} />
         <StatCard label="Expected Today" value={formatPHP(me.expected, { compact: true })} icon={Target} tone="info" />
@@ -315,7 +322,7 @@ function CollectorDashboard() {
             <Button className="mt-5 w-full bg-primary text-primary-foreground hover:bg-primary-glow">Open route map</Button>
           </div>
           <div className="rounded-2xl border bg-gradient-to-br from-primary to-primary-glow p-5 text-primary-foreground shadow-sm">
-            <p className="text-xs uppercase tracking-wider opacity-80">Collection rate today</p>
+            <p className="text-xs uppercase tracking-wider opacity-80">Collection Efficiency</p>
             <p className="mt-1 font-display text-3xl font-semibold num">{Math.round((me.actual / me.expected) * 100)}%</p>
             <div className="mt-3 h-2 rounded-full bg-primary-foreground/20">
               <div className="h-2 rounded-full bg-primary-foreground" style={{ width: `${Math.round((me.actual / me.expected) * 100)}%` }} />
@@ -343,7 +350,7 @@ function ManagerDashboard() {
   const totalReceivable = loans.reduce((s, l) => s + l.totalReceivable, 0);
   const totalCollected = totalReceivable - loans.reduce((s, l) => s + l.currentBalance, 0);
   const totalOutstanding = loans.reduce((s, l) => s + l.currentBalance, 0);
-  const rate = Math.round((totalCollected / totalReceivable) * 100);
+  const collectionEfficiency = Math.round((totalCollected / totalReceivable) * 100);
   const overdue = loans.filter((l) => l.status === "overdue").length;
   const pastDue = loans.filter((l) => l.status === "past-due").length;
 
@@ -358,12 +365,14 @@ function ManagerDashboard() {
     <div className="space-y-6">
       <PageHeader title="Executive Dashboard" subtitle="Portfolio performance and collection effectiveness" />
 
+      <CollectionEfficiencyBanner rate={collectionEfficiency} collected={totalCollected} receivable={totalReceivable} />
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <StatCard label="Active Loans" value={String(loans.filter((l) => l.status !== "paid").length)} icon={Banknote} />
         <StatCard label="Total Receivable" value={formatPHP(totalReceivable, { compact: true })} icon={TrendingUp} tone="info" />
         <StatCard label="Total Collected" value={formatPHP(totalCollected, { compact: true })} icon={Wallet} tone="success" trend={8} />
         <StatCard label="Outstanding" value={formatPHP(totalOutstanding, { compact: true })} icon={Activity} />
-        <StatCard label="Collection Rate" value={`${rate}%`} icon={Target} tone="success" trend={3} />
+        <StatCard label="Collection Efficiency" value={`${collectionEfficiency}%`} icon={Target} tone="success" trend={3} />
         <StatCard label="Overdue Accts" value={String(overdue)} icon={AlertTriangle} tone="warning" />
         <StatCard label="Past Due Accts" value={String(pastDue)} icon={AlertOctagon} tone="destructive" />
       </div>
@@ -437,7 +446,7 @@ function ManagerDashboard() {
                 <TableHead className="text-right">Assigned</TableHead>
                 <TableHead className="text-right">Expected</TableHead>
                 <TableHead className="text-right">Actual</TableHead>
-                <TableHead className="text-right">Rate</TableHead>
+                <TableHead className="text-right">Collection Efficiency</TableHead>
                 <TableHead className="text-right">Missed</TableHead>
                 <TableHead className="text-right">Overdue</TableHead>
                 <TableHead className="text-right">Past Due</TableHead>
@@ -502,6 +511,31 @@ function RiskCard({ title, items, tone }: { title: string; items: string[]; tone
 }
 
 /* ----------------- shared ----------------- */
+function CollectionEfficiencyBanner({ rate, collected, receivable }: { rate: number; collected: number; receivable: number }) {
+  const tone = rate >= 90 ? "var(--success)" : rate >= 75 ? "var(--warning)" : "var(--destructive)";
+  return (
+    <div className="rounded-2xl border bg-card p-5 shadow-sm">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Collection Efficiency</p>
+          <p className="mt-1 font-display text-5xl font-bold num" style={{ color: tone }}>{rate}%</p>
+          <p className="mt-1 text-sm text-muted-foreground">{formatPHP(collected)} collected out of {formatPHP(receivable)} total receivable</p>
+        </div>
+        <div className="w-full flex-1 md:max-w-sm">
+          <div className="h-4 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-4 rounded-full transition-all duration-500" style={{ width: `${Math.min(rate, 100)}%`, background: tone }} />
+          </div>
+          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+            <span>0%</span>
+            <span className="font-semibold" style={{ color: tone }}>{rate}% efficiency</span>
+            <span>100%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border bg-card p-5 shadow-sm">
