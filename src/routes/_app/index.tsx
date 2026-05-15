@@ -33,6 +33,7 @@ function DashboardSwitch() {
   const { role } = useRole();
   if (role === "collector") return <CollectorDashboard />;
   if (role === "manager" || role === "sysadmin") return <ManagerDashboard />;
+  if (role === "accounting_clerk") return <AdminDashboard />;
   return <AdminDashboard />;
 }
 
@@ -321,7 +322,7 @@ function CollectorDashboard() {
             </div>
             <Button className="mt-5 w-full bg-primary text-primary-foreground hover:bg-primary-glow">Open route map</Button>
           </div>
-          <div className="rounded-2xl border bg-gradient-to-br from-primary to-primary-glow p-5 text-primary-foreground shadow-sm">
+          <div className="rounded-2xl border bg-linear-to-br from-primary to-primary-glow p-5 text-primary-foreground shadow-sm">
             <p className="text-xs uppercase tracking-wider opacity-80">Collection Efficiency</p>
             <p className="mt-1 font-display text-3xl font-semibold num">{Math.round((me.actual / me.expected) * 100)}%</p>
             <div className="mt-3 h-2 rounded-full bg-primary-foreground/20">

@@ -1,12 +1,13 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
-export type Role = "admin" | "collector" | "manager" | "sysadmin";
+export type Role = "admin" | "collector" | "manager" | "sysadmin" | "accounting_clerk";
 
 export const ROLE_LABELS: Record<Role, string> = {
-  admin: "Administrator / Encoder",
+  admin: "Administrator",
   collector: "Collector",
   manager: "Manager",
   sysadmin: "System Administrator",
+  accounting_clerk: "Accounting Clerk",
 };
 
 const RoleCtx = createContext<{
