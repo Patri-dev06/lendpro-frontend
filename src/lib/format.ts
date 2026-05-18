@@ -19,3 +19,13 @@ export function addDays(d: Date | string, days: number) {
   date.setDate(date.getDate() + days);
   return date;
 }
+
+export function addNonSundayDays(startDate: Date | string, n: number): Date {
+  const d = typeof startDate === "string" ? new Date(startDate) : new Date(startDate);
+  let added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0) added++;
+  }
+  return d;
+}

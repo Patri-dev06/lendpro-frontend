@@ -21,22 +21,28 @@ export interface Client {
   storeName: string;
   address: string;
   phone: string;
+  email?: string;
   type: "new" | "renew";
   collectorId: string;
   status: LoanStatus;
 }
 
+export type LoanType = "new-loan" | "reloan" | "reconstruct";
+
 export interface Loan {
   id: string;
   number: string;
   clientId: string;
+  loanType: LoanType;
   principal: number;
   interest: number;
   serviceCharge: number;
   totalReceivable: number;
   dailyPayment: number;
+  termDays: number;
   currentBalance: number;
   releaseDate: string;
+  dueDate: string;
   expectedEndDate: string;
   status: LoanStatus;
   collectorId: string;
@@ -73,28 +79,28 @@ export const collectors: Collector[] = [
 
 export const clients: Client[] = [
   { id: "cl1", number: "CL-2025-001", name: "Juan Dela Cruz", storeName: "Juan Sari-Sari Store", address: "12 Mabini St., Quezon City", phone: "+63 917 123 4567", type: "new", collectorId: "c1", status: "new" },
-  { id: "cl2", number: "CL-2025-002", name: "Maria Santos", storeName: "Maria Mini Mart", address: "45 Rizal Ave., Manila", phone: "+63 918 555 1212", type: "renew", collectorId: "c2", status: "renew" },
+  { id: "cl2", number: "CL-2025-002", name: "Maria Santos", storeName: "Maria Mini Mart", address: "45 Rizal Ave., Manila", phone: "+63 918 555 1212", email: "maria.santos@gmail.com", type: "renew", collectorId: "c2", status: "renew" },
   { id: "cl3", number: "CL-2025-003", name: "Roberto Reyes", storeName: "RJR General Merchandise", address: "78 Ortigas Ave., Pasig", phone: "+63 920 444 7788", type: "renew", collectorId: "c3", status: "overdue" },
-  { id: "cl4", number: "CL-2025-004", name: "Ana Villanueva", storeName: "AV Store", address: "10 Ayala Blvd., Makati", phone: "+63 915 222 9090", type: "new", collectorId: "c4", status: "paid" },
+  { id: "cl4", number: "CL-2025-004", name: "Ana Villanueva", storeName: "AV Store", address: "10 Ayala Blvd., Makati", phone: "+63 915 222 9090", email: "ana.villanueva@gmail.com", type: "new", collectorId: "c4", status: "paid" },
   { id: "cl5", number: "CL-2025-005", name: "Pedro Gonzales", storeName: "Pedro's Bakery", address: "5 Katipunan, QC", phone: "+63 917 998 1122", type: "renew", collectorId: "c1", status: "past-due" },
-  { id: "cl6", number: "CL-2025-006", name: "Liza Bautista", storeName: "LB Carenderia", address: "23 Taft Ave., Manila", phone: "+63 919 333 6677", type: "new", collectorId: "c2", status: "new" },
+  { id: "cl6", number: "CL-2025-006", name: "Liza Bautista", storeName: "LB Carenderia", address: "23 Taft Ave., Manila", phone: "+63 919 333 6677", email: "liza.bautista@gmail.com", type: "new", collectorId: "c2", status: "new" },
   { id: "cl7", number: "CL-2025-007", name: "Carlos Mercado", storeName: "Mercado Hardware", address: "88 C. Raymundo, Pasig", phone: "+63 916 700 1234", type: "renew", collectorId: "c3", status: "overdue" },
   { id: "cl8", number: "CL-2025-008", name: "Grace Lim", storeName: "Grace Beauty Shop", address: "9 Buendia, Makati", phone: "+63 918 121 3434", type: "new", collectorId: "c4", status: "new" },
-  { id: "cl9", number: "CL-2025-009", name: "Miguel Tan", storeName: "Tan Auto Parts", address: "34 EDSA, QC", phone: "+63 917 565 7878", type: "renew", collectorId: "c1", status: "renew" },
+  { id: "cl9", number: "CL-2025-009", name: "Miguel Tan", storeName: "Tan Auto Parts", address: "34 EDSA, QC", phone: "+63 917 565 7878", email: "miguel.tan@email.com", type: "renew", collectorId: "c1", status: "renew" },
   { id: "cl10", number: "CL-2025-010", name: "Rosa Aquino", storeName: "Aquino Grocery", address: "16 Aurora Blvd., QC", phone: "+63 920 111 2233", type: "new", collectorId: "c2", status: "paid" },
 ];
 
 export const loans: Loan[] = [
-  { id: "ln1", number: "LN-2025-0001", clientId: "cl1", principal: 10000, interest: 1500, serviceCharge: 500, totalReceivable: 12000, dailyPayment: 250, currentBalance: 8750, releaseDate: "2025-04-15", expectedEndDate: "2025-06-22", status: "new", collectorId: "c1" },
-  { id: "ln2", number: "LN-2025-0002", clientId: "cl2", principal: 20000, interest: 3000, serviceCharge: 1000, totalReceivable: 24000, dailyPayment: 500, currentBalance: 12500, releaseDate: "2025-03-10", expectedEndDate: "2025-05-26", status: "renew", collectorId: "c2" },
-  { id: "ln3", number: "LN-2025-0003", clientId: "cl3", principal: 15000, interest: 2250, serviceCharge: 750, totalReceivable: 18000, dailyPayment: 350, currentBalance: 14700, releaseDate: "2025-04-01", expectedEndDate: "2025-06-15", status: "overdue", collectorId: "c3" },
-  { id: "ln4", number: "LN-2025-0004", clientId: "cl4", principal: 8000, interest: 1200, serviceCharge: 400, totalReceivable: 9600, dailyPayment: 200, currentBalance: 0, releaseDate: "2025-01-05", expectedEndDate: "2025-03-25", status: "paid", collectorId: "c4" },
-  { id: "ln5", number: "LN-2025-0005", clientId: "cl5", principal: 25000, interest: 3750, serviceCharge: 1250, totalReceivable: 30000, dailyPayment: 600, currentBalance: 9000, releaseDate: "2024-12-01", expectedEndDate: "2025-03-15", status: "past-due", collectorId: "c1" },
-  { id: "ln6", number: "LN-2025-0006", clientId: "cl6", principal: 12000, interest: 1800, serviceCharge: 600, totalReceivable: 14400, dailyPayment: 300, currentBalance: 11400, releaseDate: "2025-04-20", expectedEndDate: "2025-06-30", status: "new", collectorId: "c2" },
-  { id: "ln7", number: "LN-2025-0007", clientId: "cl7", principal: 18000, interest: 2700, serviceCharge: 900, totalReceivable: 21600, dailyPayment: 450, currentBalance: 16200, releaseDate: "2025-04-05", expectedEndDate: "2025-06-22", status: "overdue", collectorId: "c3" },
-  { id: "ln8", number: "LN-2025-0008", clientId: "cl8", principal: 10000, interest: 1500, serviceCharge: 500, totalReceivable: 12000, dailyPayment: 250, currentBalance: 10750, releaseDate: "2025-04-25", expectedEndDate: "2025-07-02", status: "new", collectorId: "c4" },
-  { id: "ln9", number: "LN-2025-0009", clientId: "cl9", principal: 30000, interest: 4500, serviceCharge: 1500, totalReceivable: 36000, dailyPayment: 700, currentBalance: 18900, releaseDate: "2025-03-15", expectedEndDate: "2025-06-15", status: "renew", collectorId: "c1" },
-  { id: "ln10", number: "LN-2025-0010", clientId: "cl10", principal: 9000, interest: 1350, serviceCharge: 450, totalReceivable: 10800, dailyPayment: 225, currentBalance: 0, releaseDate: "2025-01-20", expectedEndDate: "2025-04-10", status: "paid", collectorId: "c2" },
+  { id: "ln1", number: "LN-2025-0001", clientId: "cl1", loanType: "new-loan", principal: 10000, interest: 1500, serviceCharge: 500, totalReceivable: 12000, dailyPayment: 267, termDays: 45, currentBalance: 8750, releaseDate: "2025-04-15", dueDate: "2025-06-14", expectedEndDate: "2025-06-22", status: "new", collectorId: "c1" },
+  { id: "ln2", number: "LN-2025-0002", clientId: "cl2", loanType: "reloan", principal: 20000, interest: 3000, serviceCharge: 1000, totalReceivable: 24000, dailyPayment: 533, termDays: 45, currentBalance: 12500, releaseDate: "2025-03-10", dueDate: "2025-05-08", expectedEndDate: "2025-05-26", status: "renew", collectorId: "c2" },
+  { id: "ln3", number: "LN-2025-0003", clientId: "cl3", loanType: "new-loan", principal: 15000, interest: 2250, serviceCharge: 750, totalReceivable: 18000, dailyPayment: 300, termDays: 60, currentBalance: 14700, releaseDate: "2025-04-01", dueDate: "2025-06-27", expectedEndDate: "2025-06-15", status: "overdue", collectorId: "c3" },
+  { id: "ln4", number: "LN-2025-0004", clientId: "cl4", loanType: "new-loan", principal: 8000, interest: 1200, serviceCharge: 400, totalReceivable: 9600, dailyPayment: 320, termDays: 30, currentBalance: 0, releaseDate: "2025-01-05", dueDate: "2025-02-14", expectedEndDate: "2025-03-25", status: "paid", collectorId: "c4" },
+  { id: "ln5", number: "LN-2025-0005", clientId: "cl5", loanType: "reloan", principal: 25000, interest: 3750, serviceCharge: 1250, totalReceivable: 30000, dailyPayment: 500, termDays: 60, currentBalance: 9000, releaseDate: "2024-12-01", dueDate: "2025-02-26", expectedEndDate: "2025-03-15", status: "past-due", collectorId: "c1" },
+  { id: "ln6", number: "LN-2025-0006", clientId: "cl6", loanType: "new-loan", principal: 12000, interest: 1800, serviceCharge: 600, totalReceivable: 14400, dailyPayment: 320, termDays: 45, currentBalance: 11400, releaseDate: "2025-04-20", dueDate: "2025-06-19", expectedEndDate: "2025-06-30", status: "new", collectorId: "c2" },
+  { id: "ln7", number: "LN-2025-0007", clientId: "cl7", loanType: "reconstruct", principal: 18000, interest: 2700, serviceCharge: 900, totalReceivable: 21600, dailyPayment: 360, termDays: 60, currentBalance: 16200, releaseDate: "2025-04-05", dueDate: "2025-07-02", expectedEndDate: "2025-06-22", status: "overdue", collectorId: "c3" },
+  { id: "ln8", number: "LN-2025-0008", clientId: "cl8", loanType: "new-loan", principal: 10000, interest: 1500, serviceCharge: 500, totalReceivable: 12000, dailyPayment: 267, termDays: 45, currentBalance: 10750, releaseDate: "2025-04-25", dueDate: "2025-06-24", expectedEndDate: "2025-07-02", status: "new", collectorId: "c4" },
+  { id: "ln9", number: "LN-2025-0009", clientId: "cl9", loanType: "reloan", principal: 30000, interest: 4500, serviceCharge: 1500, totalReceivable: 36000, dailyPayment: 600, termDays: 60, currentBalance: 18900, releaseDate: "2025-03-15", dueDate: "2025-06-11", expectedEndDate: "2025-06-15", status: "renew", collectorId: "c1" },
+  { id: "ln10", number: "LN-2025-0010", clientId: "cl10", loanType: "new-loan", principal: 9000, interest: 1350, serviceCharge: 450, totalReceivable: 10800, dailyPayment: 240, termDays: 45, currentBalance: 0, releaseDate: "2025-01-20", dueDate: "2025-03-19", expectedEndDate: "2025-04-10", status: "paid", collectorId: "c2" },
 ];
 
 export const payments: Payment[] = [

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   Users, UserPlus, Repeat, AlertTriangle, AlertOctagon, CheckCircle2, Wallet,
-  TrendingUp, Banknote, Target, Activity, Phone, MapPin,
+  TrendingUp, Banknote, Target, Activity, Phone, MapPin, ArrowUpRight, PiggyBank,
 } from "lucide-react";
 import { useRole } from "@/lib/role-context";
 import { PageHeader } from "@/components/finance/PageHeader";
@@ -66,11 +66,19 @@ function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [collectorFilter, setCollectorFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [bankBalance, setBankBalance] = useState(0);
+  const [editingBank, setEditingBank] = useState(false);
 
   const totalOutstanding = loans.reduce((s, l) => s + l.currentBalance, 0);
   const totalReceivable = loans.reduce((s, l) => s + l.totalReceivable, 0);
   const totalCollected = totalReceivable - totalOutstanding;
   const collectionEfficiency = Math.round((totalCollected / totalReceivable) * 100);
+
+  const currentMonth = monthlyReleases[monthlyReleases.length - 1];
+  const releasesThisMonth = currentMonth?.releases ?? 0;
+  const releasesThisYear = monthlyReleases.reduce((s, m) => s + m.releases, 0);
+  const collectionThisMonth = monthlyCollection[monthlyCollection.length - 1]?.collected ?? 0;
+  const collectionThisYear = monthlyCollection.reduce((s, m) => s + m.collected, 0);
 
   const counts = useMemo(() => ({
     active: loans.filter((l) => l.status !== "paid").length,
@@ -119,6 +127,45 @@ function AdminDashboard() {
         <StatCard label="Past Due +30 Days" value={String(counts.pastDue)} icon={AlertOctagon} tone="destructive" hint="critical accounts" trend={1} />
         <StatCard label="Fully Paid" value={String(counts.paid)} icon={CheckCircle2} tone="success" hint="this month" trend={9} />
         <StatCard label="Outstanding" value={formatPHP(totalOutstanding, { compact: true })} icon={Wallet} hint="portfolio balance" trend={3} />
+      </div>
+
+      {/* Financial Summary */}
+      <div className="rounded-2xl border bg-card p-5 shadow-sm">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Financial Summary</p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <FinStat label="Releases This Month" value={formatPHP(releasesThisMonth, { compact: true })} icon={ArrowUpRight} tone="info" />
+          <FinStat label="Releases This Year" value={formatPHP(releasesThisYear, { compact: true })} icon={ArrowUpRight} tone="info" sub="running total" />
+          <FinStat label="Collection This Month" value={formatPHP(collectionThisMonth, { compact: true })} icon={TrendingUp} tone="success" />
+          <FinStat label="Collection This Year" value={formatPHP(collectionThisYear, { compact: true })} icon={TrendingUp} tone="success" sub="running total" />
+          <div className="rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 p-4">
+            <p className="text-xs text-muted-foreground flex items-center gap-1"><PiggyBank className="h-3.5 w-3.5" />Bank Balance</p>
+            {editingBank ? (
+              <div className="mt-2 flex items-center gap-1">
+                <span className="text-sm font-semibold">₱</span>
+                <Input
+                  type="number"
+                  autoFocus
+                  className="h-7 text-sm font-semibold num"
+                  value={bankBalance}
+                  onChange={(e) => setBankBalance(Number(e.target.value) || 0)}
+                  onBlur={() => setEditingBank(false)}
+                  onKeyDown={(e) => e.key === "Enter" && setEditingBank(false)}
+                />
+              </div>
+            ) : (
+              <button
+                className="mt-1 block text-left w-full"
+                onClick={() => setEditingBank(true)}
+                title="Click to update bank balance"
+              >
+                <p className="font-display text-xl font-semibold num text-foreground">
+                  {formatPHP(bankBalance, { compact: true })}
+                </p>
+                <p className="text-[11px] text-muted-foreground underline-offset-2 hover:underline">Click to update</p>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -547,6 +594,18 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle?: st
         </div>
       </div>
       {children}
+    </div>
+  );
+}
+
+function FinStat({ label, value, icon: Icon, tone, sub }: { label: string; value: string; icon: React.ElementType; tone: "info" | "success"; sub?: string }) {
+  const cls = tone === "success" ? "text-success bg-success/10" : "text-info bg-info/10";
+  return (
+    <div className="rounded-xl border bg-muted/20 p-4">
+      <div className={`mb-2 inline-flex rounded-lg p-1.5 ${cls}`}><Icon className="h-3.5 w-3.5" /></div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-0.5 font-display text-xl font-semibold num">{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
     </div>
   );
 }
