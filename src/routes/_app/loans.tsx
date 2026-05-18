@@ -4,7 +4,7 @@ import { LoanCreateSection } from "@/components/loans/LoanCreateSection";
 import { ActiveLoanTable } from "@/components/loans/ActiveLoanTable";
 
 export const Route = createFileRoute("/_app/loans")({
-  head: () => ({ meta: [{ title: "Loans — LendPro" }] }),
+  head: () => ({ meta: [{ title: "Loans — BuenaMano" }] }),
   component: LoansPage,
 });
 

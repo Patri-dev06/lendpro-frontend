@@ -17,19 +17,19 @@ import { toast } from "sonner";
 const EMAIL_TEMPLATES = {
   reminder: {
     label: "Payment Reminder",
-    subject: (name: string) => `Payment Reminder — LendPro`,
+    subject: (name: string) => `Payment Reminder — BuenaMano`,
     body: (name: string, balance: string, daily: string) =>
       `Dear ${name},\n\nThis is a friendly reminder that your loan account with LendPro has a remaining balance of ${balance}.\n\nYour daily payment of ${daily} is due today. Please coordinate with your assigned collector for your payment.\n\nIf you have any concerns, feel free to reach out to our office.\n\nThank you for your continued trust in LendPro.\n\nLendPro Loan & Collection`,
   },
   statement: {
     label: "Loan Statement",
-    subject: (name: string) => `Your Loan Statement — LendPro`,
+    subject: (name: string) => `Your Loan Statement — BuenaMano`,
     body: (name: string, balance: string, daily: string) =>
       `Dear ${name},\n\nPlease find below a summary of your current loan account with LendPro:\n\n  Remaining Balance: ${balance}\n  Daily Payment: ${daily}\n\nFor a detailed breakdown of your payment schedule, please coordinate with our office or your assigned collector.\n\nLendPro Loan & Collection`,
   },
   overdue: {
     label: "Overdue Notice",
-    subject: (name: string) => `Important: Overdue Account Notice — LendPro`,
+    subject: (name: string) => `Important: Overdue Account Notice — BuenaMano`,
     body: (name: string, balance: string, daily: string) =>
       `Dear ${name},\n\nOur records show that your loan account is currently overdue with a remaining balance of ${balance}.\n\nWe urge you to settle your outstanding daily payment of ${daily} at your earliest convenience to avoid additional charges.\n\nPlease contact your assigned collector or our office immediately.\n\nLendPro Loan & Collection`,
   },
@@ -41,7 +41,7 @@ const EMAIL_TEMPLATES = {
 };
 
 export const Route = createFileRoute("/_app/clients")({
-  head: () => ({ meta: [{ title: "Clients — LendPro" }] }),
+  head: () => ({ meta: [{ title: "Clients — BuenaMano" }] }),
   component: ClientsPage,
 });
 

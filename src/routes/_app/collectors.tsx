@@ -8,7 +8,7 @@ import { formatPHP } from "@/lib/format";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/collectors")({
-  head: () => ({ meta: [{ title: "Collectors — LendPro" }] }),
+  head: () => ({ meta: [{ title: "Collectors — BuenaMano" }] }),
   component: CollectorsPage,
 });
 

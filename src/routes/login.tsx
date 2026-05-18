@@ -1,14 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { CircleDollarSign, ShieldCheck, TrendingUp, LineChart, Eye, EyeOff } from "lucide-react";
+import { ShieldCheck, TrendingUp, LineChart, Banknote, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ROLE_LABELS, type Role } from "@/lib/role-context";
+import { useRole, ROLE_LABELS, type Role } from "@/lib/role-context";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Sign in — LendPro" }] }),
+  head: () => ({ meta: [{ title: "Sign in — BuenaMano" }] }),
   component: LoginPage,
 });
 
@@ -16,7 +16,7 @@ const STATS = [
   { label: "Collected today", value: "₱182,450", icon: TrendingUp },
   { label: "Outstanding", value: "₱1.74M", icon: LineChart },
   { label: "Overdue", value: "23 accts", icon: ShieldCheck },
-  { label: "Active loans", value: "276", icon: CircleDollarSign },
+  { label: "Active loans", value: "276", icon: Banknote },
 ];
 
 function LoginPage() {
@@ -34,14 +34,9 @@ function LoginPage() {
             backgroundSize: "44px 44px",
           }}
         />
-        <div className="relative flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-foreground/10 backdrop-blur ring-1 ring-primary-foreground/20">
-            <CircleDollarSign className="h-5 w-5" />
-          </div>
-          <div className="leading-tight">
-            <p className="font-display text-base font-semibold">LendPro</p>
-            <p className="text-[11px] uppercase tracking-widest opacity-70">Loan & Collection Suite</p>
-          </div>
+
+        <div className="relative">
+          <img src="/logo.png" alt="BuenaMano Lending Corporation" className="h-16 w-auto object-contain brightness-0 invert" />
         </div>
 
         <div className="relative space-y-8">
@@ -70,17 +65,14 @@ function LoginPage() {
         </div>
 
         <p className="relative text-xs text-primary-foreground/60">
-          © {new Date().getFullYear()} LendPro Finance Systems · Secure ISO-aligned operations
+          © {new Date().getFullYear()} BuenaMano Lending Corporation · All rights reserved
         </p>
       </div>
 
       {/* Right form panel */}
       <div className="flex flex-col justify-between bg-background p-6 sm:p-10">
         <div className="flex justify-end lg:hidden">
-          <div className="flex items-center gap-2 text-primary">
-            <CircleDollarSign className="h-5 w-5" />
-            <span className="font-display font-semibold">LendPro</span>
-          </div>
+          <img src="/logo.png" alt="BuenaMano Lending Corporation" className="h-10 w-auto object-contain" />
         </div>
 
         <div className="mx-auto w-full max-w-sm">
@@ -92,7 +84,9 @@ function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          By continuing you agree to LendPro's <a href="#" className="underline">Terms</a> and <a href="#" className="underline">Privacy Policy</a>.
+          By continuing you agree to BuenaMano's{" "}
+          <a href="#" className="underline">Terms</a> and{" "}
+          <a href="#" className="underline">Privacy Policy</a>.
         </p>
       </div>
     </div>
@@ -102,9 +96,26 @@ function LoginPage() {
 /* ---------- LOGIN FORM ---------- */
 function LoginForm({ onSwitch }: { onSwitch: () => void }) {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("alex@lendpro.ph");
-  const [password, setPassword] = useState("demo1234");
+  const { login } = useRole();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await login(email, password);
+      navigate({ to: "/" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid credentials.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <>
@@ -113,13 +124,23 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
         <p className="mt-1.5 text-sm text-muted-foreground">Enter your credentials to access the operations console.</p>
       </div>
 
-      <form
-        className="mt-8 space-y-4"
-        onSubmit={(e) => { e.preventDefault(); navigate({ to: "/" }); }}
-      >
+      <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+            {error}
+          </div>
+        )}
         <div className="space-y-1.5">
-          <Label htmlFor="email">Email or Username</Label>
-          <Input id="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@lendpro.ph" />
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@buenamano.ph"
+            required
+            disabled={loading}
+          />
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -133,6 +154,9 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="pr-10"
+              placeholder="Enter your password"
+              required
+              disabled={loading}
             />
             <button
               type="button"
@@ -143,12 +167,14 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
             </button>
           </div>
         </div>
-        <Button type="submit" className="h-11 w-full bg-primary text-primary-foreground hover:bg-primary-glow">
-          Sign in
+        <Button
+          type="submit"
+          className="h-11 w-full bg-primary text-primary-foreground hover:bg-primary-glow"
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {loading ? "Signing in…" : "Sign in"}
         </Button>
-        <p className="text-center text-xs text-muted-foreground">
-          Demo build — any credentials work. Switch roles inside the app from the top-right menu.
-        </p>
       </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
@@ -164,6 +190,7 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
 /* ---------- REGISTER FORM ---------- */
 function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
   const navigate = useNavigate();
+  const { register } = useRole();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("collector");
@@ -171,8 +198,25 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
   const [confirm, setConfirm] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const mismatch = confirm.length > 0 && password !== confirm;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (mismatch) return;
+    setError("");
+    setLoading(true);
+    try {
+      await register(name, email, role, password, confirm);
+      navigate({ to: "/" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <>
@@ -181,22 +225,39 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
         <p className="mt-1.5 text-sm text-muted-foreground">Fill in the details to register a new user.</p>
       </div>
 
-      <form
-        className="mt-8 space-y-4"
-        onSubmit={(e) => { e.preventDefault(); if (!mismatch) navigate({ to: "/" }); }}
-      >
+      <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+            {error}
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="full-name">Full name</Label>
-          <Input id="full-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Juan dela Cruz" required />
+          <Input
+            id="full-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Juan dela Cruz"
+            required
+            disabled={loading}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="reg-email">Email</Label>
-          <Input id="reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="juan@lendpro.ph" required />
+          <Input
+            id="reg-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="juan@buenamano.ph"
+            required
+            disabled={loading}
+          />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="role">Role</Label>
-          <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-            <SelectTrigger id="role"><SelectValue /></SelectTrigger>
+          <Label htmlFor="reg-role">Role</Label>
+          <Select value={role} onValueChange={(v) => setRole(v as Role)} disabled={loading}>
+            <SelectTrigger id="reg-role"><SelectValue /></SelectTrigger>
             <SelectContent>
               {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([r, label]) => (
                 <SelectItem key={r} value={r}>{label}</SelectItem>
@@ -215,6 +276,7 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
               placeholder="Min. 8 characters"
               className="pr-10"
               required
+              disabled={loading}
             />
             <button
               type="button"
@@ -236,6 +298,7 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
               placeholder="Re-enter password"
               className={`pr-10 ${mismatch ? "border-destructive focus-visible:ring-destructive" : ""}`}
               required
+              disabled={loading}
             />
             <button
               type="button"
@@ -249,10 +312,11 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
         </div>
         <Button
           type="submit"
-          disabled={mismatch}
+          disabled={mismatch || loading}
           className="h-11 w-full bg-primary text-primary-foreground hover:bg-primary-glow disabled:opacity-50"
         >
-          Create account
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {loading ? "Creating account…" : "Create account"}
         </Button>
       </form>
 

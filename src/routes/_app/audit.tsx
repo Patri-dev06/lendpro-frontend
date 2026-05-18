@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { auditLogs } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/_app/audit")({
-  head: () => ({ meta: [{ title: "Audit Logs — LendPro" }] }),
+  head: () => ({ meta: [{ title: "Audit Logs — BuenaMano" }] }),
   component: AuditPage,
 });
 

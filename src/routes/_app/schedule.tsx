@@ -11,7 +11,7 @@ import { loans, clientById, generateSchedule } from "@/lib/mock-data";
 import { formatPHP, formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/schedule")({
-  head: () => ({ meta: [{ title: "Collection Schedule — LendPro" }] }),
+  head: () => ({ meta: [{ title: "Collection Schedule — BuenaMano" }] }),
   component: SchedulePage,
 });
 

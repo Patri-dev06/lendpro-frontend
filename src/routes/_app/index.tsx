@@ -5,7 +5,7 @@ import { CollectorDashboard } from "@/components/dashboard/CollectorDashboard";
 import { ManagerDashboard } from "@/components/dashboard/ManagerDashboard";
 
 export const Route = createFileRoute("/_app/")({
-  head: () => ({ meta: [{ title: "Dashboard — LendPro" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — BuenaMano" }] }),
   component: DashboardSwitch,
 });
 

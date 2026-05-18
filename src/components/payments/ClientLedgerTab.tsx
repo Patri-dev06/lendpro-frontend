@@ -52,7 +52,7 @@ export function ClientLedgerTab() {
   .sig{flex:1;border-top:1px solid #000;padding-top:4px;font-size:9px;text-align:center}
   @media print{body{padding:20px}}
 </style></head><body>
-<div class="co">LendPro — Loan &amp; Collection</div>
+<div class="co">BuenaMano Lending Corporation</div>
 <h2>Client Ledger — ${client.name}</h2>
 <div class="div2"></div>
 <div class="info-grid">

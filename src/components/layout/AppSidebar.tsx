@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Banknote, CalendarCheck, Wallet, FileBarChart,
-  UserCheck, ShieldCheck, ScrollText, Settings, CircleDollarSign,
+  UserCheck, ShieldCheck, ScrollText, Settings,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -32,16 +32,12 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="border-b border-sidebar-border/60 px-3 py-4">
-        <Link to="/" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary-glow to-primary text-primary-foreground shadow-md">
-            <CircleDollarSign className="h-5 w-5" />
-          </div>
-          {!collapsed && (
-            <div className="leading-tight">
-              <p className="font-display text-sm font-semibold text-sidebar-foreground">LendPro</p>
-              <p className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">Loan & Collection</p>
-            </div>
+      <SidebarHeader className="border-b border-sidebar-border/60 px-3 py-3">
+        <Link to="/" className="flex items-center justify-center">
+          {collapsed ? (
+            <img src="/logo.png" alt="BuenaMano" className="h-8 w-8 object-contain" />
+          ) : (
+            <img src="/logo.png" alt="BuenaMano Lending Corporation" className="h-14 w-auto object-contain" />
           )}
         </Link>
       </SidebarHeader>

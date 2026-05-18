@@ -6,14 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/_app/settings")({
-  head: () => ({ meta: [{ title: "Settings — LendPro" }] }),
+  head: () => ({ meta: [{ title: "Settings — BuenaMano" }] }),
   component: SettingsPage,
 });
 
 function SettingsPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" subtitle="Configure your LendPro workspace." />
+      <PageHeader title="Settings" subtitle="Configure your BuenaMano workspace." />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border bg-card p-6 shadow-sm">
           <h3 className="font-display text-base font-semibold">Organization</h3>

@@ -45,10 +45,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "LendPro — Loan Management & Collection Monitoring System" },
+      { title: "BuenaMano Lending Corporation — Loan Management & Collection Monitoring System" },
       { name: "description", content: "A clean, professional loan management and collection monitoring system for finance and lending companies." },
-      { property: "og:title", content: "LendPro — Loan Management & Collection Monitoring System" },
-      { name: "twitter:title", content: "LendPro — Loan Management & Collection Monitoring System" },
+      { property: "og:title", content: "BuenaMano Lending Corporation — Loan Management & Collection Monitoring System" },
+      { name: "twitter:title", content: "BuenaMano Lending Corporation — Loan Management & Collection Monitoring System" },
       { property: "og:description", content: "A clean, professional loan management and collection monitoring system for finance and lending companies." },
       { name: "twitter:description", content: "A clean, professional loan management and collection monitoring system for finance and lending companies." },
       { name: "twitter:card", content: "summary_large_image" },

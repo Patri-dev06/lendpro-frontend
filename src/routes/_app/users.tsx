@@ -12,7 +12,7 @@ import { systemUsers } from "@/lib/mock-data";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/users")({
-  head: () => ({ meta: [{ title: "User Management — LendPro" }] }),
+  head: () => ({ meta: [{ title: "User Management — BuenaMano" }] }),
   component: UsersPage,
 });
 

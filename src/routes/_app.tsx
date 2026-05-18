@@ -1,9 +1,13 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { TopBar } from "@/components/layout/TopBar";
 
 export const Route = createFileRoute("/_app")({
+  beforeLoad: () => {
+    const token = localStorage.getItem("bm_token");
+    if (!token) throw redirect({ to: "/login" });
+  },
   component: AppLayout,
 });
 

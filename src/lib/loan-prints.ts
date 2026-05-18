@@ -39,13 +39,13 @@ export function printTILA(p: PrintTILAParams) {
   p{line-height:1.6;margin:0}
   @media print{body{padding:20px}}
 </style></head><body>
-<div class="co">LendPro — Loan &amp; Collection</div>
+<div class="co">BuenaMano Lending Corporation</div>
 <h1>TRUTH IN LENDING DISCLOSURE STATEMENT</h1>
 <div class="sub">Pursuant to Republic Act No. 3765 (Truth in Lending Act)</div>
 <div class="div"></div>
 <div class="sec">
   <div class="sec-title">Parties</div>
-  <div class="row"><span class="lbl">Creditor</span><span class="val">LendPro Loan &amp; Collection</span></div>
+  <div class="row"><span class="lbl">Creditor</span><span class="val">BuenaMano Lending Corporation</span></div>
   <div class="row"><span class="lbl">Borrower</span><span class="val">${p.selectedClient.name}</span></div>
   <div class="row"><span class="lbl">Business / Store</span><span class="val">${p.selectedClient.storeName}</span></div>
   <div class="row"><span class="lbl">Loan Reference</span><span class="val">${loanNum}</span></div>
@@ -118,7 +118,7 @@ export function printInvoice(p: PrintInvoiceParams) {
   @media print{body{padding:20px}}
 </style></head><body>
 <div class="hdr">
-  <div><div class="co-name">LendPro</div><div class="co-sub">Loan &amp; Collection Services</div></div>
+  <div><div class="co-name">BuenaMano Lending Corporation</div><div class="co-sub">Loan &amp; Collection Services</div></div>
   <div><div class="inv-lbl">INVOICE</div><div class="inv-num">No. ${loanNum}</div><div class="inv-num">Date: ${p.date}</div></div>
 </div>
 <div class="div"></div>
@@ -188,7 +188,7 @@ export function printLoanForm(p: PrintLoanFormParams) {
   @media print{body{padding:20px}}
 </style></head><body>
 <h1>LOAN AGREEMENT &amp; PROMISSORY NOTE</h1>
-<div class="sub">LendPro Loan &amp; Collection</div>
+<div class="sub">BuenaMano Lending Corporation</div>
 <div class="div2"></div>
 <div class="sec-title">Loan Information</div>
 <div class="frow">
@@ -250,7 +250,7 @@ export function printLedger(loan: Loan, client: Client, collector: Collector) {
   .total-row td{font-weight:bold;background:#f8f8f8;border-top:2px solid #aaa}
   @media print{body{padding:20px}}
 </style></head><body>
-<div class="co">LendPro — Loan &amp; Collection</div>
+<div class="co">BuenaMano Lending Corporation</div>
 <h2>Client Ledger</h2>
 <div class="div2"></div>
 <div class="info-grid">
@@ -297,7 +297,7 @@ export function printLedger(loan: Loan, client: Client, collector: Collector) {
     </tr>
   </tbody>
 </table>
-<div style="margin-top:20px;font-size:9px;color:#888">Printed: ${new Date().toLocaleDateString("en-PH")} — LendPro Loan &amp; Collection</div>
+<div style="margin-top:20px;font-size:9px;color:#888">Printed: ${new Date().toLocaleDateString("en-PH")} — BuenaMano Lending Corporation</div>
 </body></html>`);
   win.document.close(); win.focus(); win.print();
 }

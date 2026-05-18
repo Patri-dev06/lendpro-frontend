@@ -10,7 +10,7 @@ import { CollectorSummaryTab } from "@/components/payments/CollectorSummaryTab";
 import { ClientLedgerTab } from "@/components/payments/ClientLedgerTab";
 
 export const Route = createFileRoute("/_app/payments")({
-  head: () => ({ meta: [{ title: "Payments — LendPro" }] }),
+  head: () => ({ meta: [{ title: "Payments — BuenaMano" }] }),
   component: PaymentsPage,
 });
 
