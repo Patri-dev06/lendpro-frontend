@@ -120,7 +120,7 @@ ${content}
               <p className="text-xs text-muted-foreground">For reconciliation with client's own record (blue card)</p>
             </div>
             <div ref={printRef} className="overflow-x-auto">
-              <Table>
+              <Table className="min-w-150">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Day #</TableHead>

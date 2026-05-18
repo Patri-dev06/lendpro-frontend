@@ -86,7 +86,7 @@ ${content}
           <p className="text-xs text-muted-foreground">Daily collection report — {date}</p>
         </div>
         <div ref={printRef} className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-150">
             <TableHeader>
               <TableRow>
                 <TableHead>Ct#</TableHead>

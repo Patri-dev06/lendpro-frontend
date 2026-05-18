@@ -24,7 +24,7 @@ export function CollectorDashboard() {
         actions={<Button className="bg-primary text-primary-foreground hover:bg-primary-glow">Start route</Button>}
       />
       <CollectionEfficiencyBanner rate={Math.round((me.actual / me.expected) * 100)} collected={me.actual} receivable={me.expected} />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Assigned Borrowers" value={String(me.assigned)} icon={Users} />
         <StatCard label="Expected Today" value={formatPHP(me.expected, { compact: true })} icon={Target} tone="info" />
         <StatCard label="Actual Today" value={formatPHP(me.actual, { compact: true })} icon={Wallet} tone="success" trend={-9} />
@@ -52,7 +52,7 @@ export function CollectorDashboard() {
             </Tabs>
           </div>
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-175">
               <TableHeader>
                 <TableRow>
                   <TableHead>Client</TableHead>

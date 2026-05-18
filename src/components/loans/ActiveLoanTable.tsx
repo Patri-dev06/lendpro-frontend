@@ -21,7 +21,7 @@ export function ActiveLoanTable() {
         <span className="text-xs text-muted-foreground">{loans.length} loans</span>
       </div>
       <div className="overflow-x-auto">
-        <Table>
+        <Table className="min-w-250">
           <TableHeader>
             <TableRow>
               <TableHead>Loan #</TableHead>

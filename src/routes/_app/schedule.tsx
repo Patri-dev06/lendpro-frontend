@@ -71,7 +71,7 @@ function SchedulePage() {
           </Select>
         </div>
         <div className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-175">
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>

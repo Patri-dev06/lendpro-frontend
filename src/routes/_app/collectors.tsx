@@ -61,7 +61,7 @@ function CollectorsPage() {
         }
       />
       <div className="rounded-2xl border bg-card shadow-sm overflow-x-auto">
-        <Table>
+        <Table className="min-w-200">
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>

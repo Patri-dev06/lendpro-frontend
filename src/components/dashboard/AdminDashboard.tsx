@@ -76,7 +76,7 @@ export function AdminDashboard() {
 
       <CollectionEfficiencyBanner rate={collectionEfficiency} collected={totalCollected} receivable={totalReceivable} />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
         <StatCard label="Active Borrowers" value={String(counts.active)} icon={Users} hint="across all collectors" trend={4} />
         <StatCard label="New Loaners" value={String(counts.newL)} icon={UserPlus} tone="info" hint="this cycle" trend={12} />
         <StatCard label="Renew Loaners" value={String(counts.renew)} icon={Repeat} tone="purple" hint="returning clients" trend={6} />
@@ -162,7 +162,7 @@ export function AdminDashboard() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-225">
             <TableHeader>
               <TableRow>
                 <TableHead>Client</TableHead>

@@ -10,28 +10,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { clients, collectors, collectorById, loans, clientById } from "@/lib/mock-data";
+import { clients, collectors, collectorById, loans } from "@/lib/mock-data";
 import { formatPHP, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 
 const EMAIL_TEMPLATES = {
   reminder: {
     label: "Payment Reminder",
-    subject: (name: string) => `Payment Reminder — BuenaMano`,
+    subject: (_name: string) => `Payment Reminder — BuenaMano`,
     body: (name: string, balance: string, daily: string) =>
-      `Dear ${name},\n\nThis is a friendly reminder that your loan account with LendPro has a remaining balance of ${balance}.\n\nYour daily payment of ${daily} is due today. Please coordinate with your assigned collector for your payment.\n\nIf you have any concerns, feel free to reach out to our office.\n\nThank you for your continued trust in LendPro.\n\nLendPro Loan & Collection`,
+      `Dear ${name},\n\nThis is a friendly reminder that your loan account with BuenaMano has a remaining balance of ${balance}.\n\nYour daily payment of ${daily} is due today. Please coordinate with your assigned collector for your payment.\n\nIf you have any concerns, feel free to reach out to our office.\n\nThank you for your continued trust in BuenaMano.\n\nBuenaMano Loan & Collection`,
   },
   statement: {
     label: "Loan Statement",
-    subject: (name: string) => `Your Loan Statement — BuenaMano`,
+    subject: (_name: string) => `Your Loan Statement — BuenaMano`,
     body: (name: string, balance: string, daily: string) =>
-      `Dear ${name},\n\nPlease find below a summary of your current loan account with LendPro:\n\n  Remaining Balance: ${balance}\n  Daily Payment: ${daily}\n\nFor a detailed breakdown of your payment schedule, please coordinate with our office or your assigned collector.\n\nLendPro Loan & Collection`,
+      `Dear ${name},\n\nPlease find below a summary of your current loan account with BuenaMano:\n\n  Remaining Balance: ${balance}\n  Daily Payment: ${daily}\n\nFor a detailed breakdown of your payment schedule, please coordinate with our office or your assigned collector.\n\nBuenaMano Loan & Collection`,
   },
   overdue: {
     label: "Overdue Notice",
-    subject: (name: string) => `Important: Overdue Account Notice — BuenaMano`,
+    subject: (_name: string) => `Important: Overdue Account Notice — BuenaMano`,
     body: (name: string, balance: string, daily: string) =>
-      `Dear ${name},\n\nOur records show that your loan account is currently overdue with a remaining balance of ${balance}.\n\nWe urge you to settle your outstanding daily payment of ${daily} at your earliest convenience to avoid additional charges.\n\nPlease contact your assigned collector or our office immediately.\n\nLendPro Loan & Collection`,
+      `Dear ${name},\n\nOur records show that your loan account is currently overdue with a remaining balance of ${balance}.\n\nWe urge you to settle your outstanding daily payment of ${daily} at your earliest convenience to avoid additional charges.\n\nPlease contact your assigned collector or our office immediately.\n\nBuenaMano Loan & Collection`,
   },
   custom: {
     label: "Custom Message",
@@ -97,7 +97,7 @@ function ClientsPage() {
           </Select>
         </div>
         <div className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-225">
             <TableHeader>
               <TableRow>
                 <TableHead>Client #</TableHead>
@@ -119,7 +119,7 @@ function ClientsPage() {
                     <div className="font-medium">{c.name}</div>
                     {c.email && <div className="text-[11px] text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" />{c.email}</div>}
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate">{c.address}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground max-w-45 truncate">{c.address}</TableCell>
                   <TableCell>{c.storeName}</TableCell>
                   <TableCell className="text-xs">{c.phone}</TableCell>
                   <TableCell><StatusBadge status={c.type} /></TableCell>

@@ -32,7 +32,7 @@ export function ManagerDashboard() {
       <PageHeader title="Executive Dashboard" subtitle="Portfolio performance and collection effectiveness" />
       <CollectionEfficiencyBanner rate={collectionEfficiency} collected={totalCollected} receivable={totalReceivable} />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
         <StatCard label="Active Loans" value={String(loans.filter((l) => l.status !== "paid").length)} icon={Banknote} />
         <StatCard label="Total Receivable" value={formatPHP(totalReceivable, { compact: true })} icon={TrendingUp} tone="info" />
         <StatCard label="Total Collected" value={formatPHP(totalCollected, { compact: true })} icon={Wallet} tone="success" trend={8} />
@@ -101,7 +101,7 @@ export function ManagerDashboard() {
           <Button variant="outline" size="sm" asChild><Link to="/collectors">View all</Link></Button>
         </div>
         <div className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-225">
             <TableHeader>
               <TableRow>
                 <TableHead>Collector</TableHead>

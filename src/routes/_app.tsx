@@ -18,7 +18,7 @@ function AppLayout() {
         <AppSidebar />
         <SidebarInset className="flex min-w-0 flex-1 flex-col">
           <TopBar />
-          <main className="flex-1 px-4 py-6 md:px-6 lg:px-8">
+          <main className="flex-1 px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:px-8">
             <Outlet />
           </main>
         </SidebarInset>
