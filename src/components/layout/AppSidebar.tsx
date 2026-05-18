@@ -32,12 +32,12 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="border-b border-sidebar-border/60 px-3 py-3">
-        <Link to="/" className="flex items-center justify-center">
+      <SidebarHeader className="border-b border-sidebar-border/60 px-2 py-1">
+        <Link to="/" className="flex flex-col items-center justify-center">
           {collapsed ? (
-            <img src="/logo.png" alt="BuenaMano" className="h-8 w-8 object-contain" />
+            <img src="/logo.png" alt="BuenaMano" className="h-10 w-10 object-contain mix-blend-screen" />
           ) : (
-            <img src="/logo.png" alt="BuenaMano Lending Corporation" className="h-14 w-auto object-contain" />
+            <img src="/logo.png" alt="BuenaMano Lending Corporation" className="w-36 h-auto object-contain mix-blend-screen" />
           )}
         </Link>
       </SidebarHeader>

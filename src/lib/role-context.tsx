@@ -51,9 +51,9 @@ const RoleCtx = createContext<RoleContextValue>({
 
 export function RoleProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  const [token, setToken] = useState<string | null>(null);
   const [role, setRoleState] = useState<Role>("admin");
-  const [isLoading, setIsLoading] = useState(!!localStorage.getItem(TOKEN_KEY));
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY);

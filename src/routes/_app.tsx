@@ -5,6 +5,7 @@ import { TopBar } from "@/components/layout/TopBar";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: () => {
+    if (typeof window === "undefined") return;
     const token = localStorage.getItem("bm_token");
     if (!token) throw redirect({ to: "/login" });
   },

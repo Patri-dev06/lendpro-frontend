@@ -26,6 +26,15 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6">
       <SidebarTrigger className="-ml-1" />
+      <div className="flex items-center gap-2 rounded-xl bg-slate-900 px-2 py-1 shrink-0">
+        <img src="/logo.png" alt="BuenaMano" className="h-12 w-auto object-contain mix-blend-screen" />
+        <div className="hidden sm:flex flex-col leading-none pr-1">
+          <span className="font-display text-xs font-bold leading-tight">
+            <span className="text-amber-400">Buena</span><span className="text-blue-300">Mano</span>
+          </span>
+          <span className="text-[9px] uppercase tracking-widest text-white/50">Lending Corp.</span>
+        </div>
+      </div>
       <div className="relative hidden md:block md:w-80">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input placeholder="Search clients, loans, payments…" className="h-9 rounded-lg pl-8" />

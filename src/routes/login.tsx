@@ -36,7 +36,7 @@ function LoginPage() {
         />
 
         <div className="relative">
-          <img src="/logo.png" alt="BuenaMano Lending Corporation" className="h-16 w-auto object-contain brightness-0 invert" />
+          <img src="/logo.png" alt="BuenaMano Lending Corporation" className="h-24 w-auto object-contain mix-blend-screen" />
         </div>
 
         <div className="relative space-y-8">
@@ -72,7 +72,17 @@ function LoginPage() {
       {/* Right form panel */}
       <div className="flex flex-col justify-between bg-background p-6 sm:p-10">
         <div className="flex justify-end lg:hidden">
-          <img src="/logo.png" alt="BuenaMano Lending Corporation" className="h-10 w-auto object-contain" />
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 font-bold text-white text-sm select-none">
+              BM
+            </div>
+            <div className="flex flex-col leading-tight">
+              <div className="font-display text-sm font-bold">
+                <span className="text-amber-500">Buena</span><span className="text-blue-600">Mano</span>
+              </div>
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Lending Corporation</span>
+            </div>
+          </div>
         </div>
 
         <div className="mx-auto w-full max-w-sm">
