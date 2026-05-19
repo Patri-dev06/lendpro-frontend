@@ -14,6 +14,7 @@ import { apiRequest } from "@/lib/api";
 import { useRole } from "@/lib/role-context";
 import { formatPHP } from "@/lib/format";
 import { toast } from "sonner";
+import { PermissionGuard } from "@/components/shared/AccessRestricted";
 
 /* ---------- Types ---------- */
 interface Collector { id: number; name: string; code: string; area: string; }
@@ -90,6 +91,7 @@ function ClientsPage() {
   const emailCount = clients.filter((c) => c.email).length;
 
   return (
+    <PermissionGuard permission="clients:read">
     <div className="space-y-6">
       <PageHeader
         title="Clients"
@@ -208,6 +210,7 @@ function ClientsPage() {
         <EmailDialog client={emailClient} onClose={() => setEmailClient(null)} />
       )}
     </div>
+    </PermissionGuard>
   );
 }
 

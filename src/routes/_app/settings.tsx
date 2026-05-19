@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/finance/PageHeader";
+import { PermissionGuard } from "@/components/shared/AccessRestricted";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/_app/settings")({
 
 function SettingsPage() {
   return (
+    <PermissionGuard permission="settings:read">
     <div className="space-y-6">
       <PageHeader title="Settings" subtitle="Configure your BuenaMano workspace." />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -37,6 +39,7 @@ function SettingsPage() {
       </div>
       <div className="flex justify-end"><Button className="bg-primary text-primary-foreground hover:bg-primary-glow">Save changes</Button></div>
     </div>
+    </PermissionGuard>
   );
 }
 

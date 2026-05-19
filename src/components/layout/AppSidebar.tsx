@@ -8,27 +8,34 @@ import {
   SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton,
   SidebarMenuItem, useSidebar,
 } from "@/components/ui/sidebar";
+import { useRole } from "@/lib/role-context";
+import { hasPermission, type Permission } from "@/lib/permissions";
 
-const main = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Clients", url: "/clients", icon: Users },
-  { title: "Loans", url: "/loans", icon: Banknote },
-  { title: "Collection Schedule", url: "/schedule", icon: CalendarCheck },
-  { title: "Payments", url: "/payments", icon: Wallet },
-  { title: "Reports", url: "/reports", icon: FileBarChart },
+const MAIN_NAV: { title: string; url: string; icon: React.ElementType; permission: Permission | null }[] = [
+  { title: "Dashboard",           url: "/",          icon: LayoutDashboard, permission: null },
+  { title: "Clients",             url: "/clients",   icon: Users,           permission: "clients:read" },
+  { title: "Loans",               url: "/loans",     icon: Banknote,        permission: "loans:read" },
+  { title: "Collection Schedule", url: "/schedule",  icon: CalendarCheck,   permission: "schedule:read" },
+  { title: "Payments",            url: "/payments",  icon: Wallet,          permission: "payments:read" },
+  { title: "Reports",             url: "/reports",   icon: FileBarChart,    permission: "reports:read" },
 ];
-const admin = [
-  { title: "Collectors", url: "/collectors", icon: UserCheck },
-  { title: "User Management", url: "/users", icon: ShieldCheck },
-  { title: "Audit Logs", url: "/audit", icon: ScrollText },
-  { title: "Settings", url: "/settings", icon: Settings },
+
+const ADMIN_NAV: { title: string; url: string; icon: React.ElementType; permission: Permission }[] = [
+  { title: "Collectors",      url: "/collectors", icon: UserCheck,   permission: "collectors:read" },
+  { title: "User Management", url: "/users",      icon: ShieldCheck, permission: "users:read" },
+  { title: "Audit Logs",      url: "/audit",      icon: ScrollText,  permission: "audit:read" },
+  { title: "Settings",        url: "/settings",   icon: Settings,    permission: "settings:read" },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const path = useRouterState({ select: (r) => r.location.pathname });
+  const { role } = useRole();
   const isActive = (u: string) => (u === "/" ? path === "/" : path.startsWith(u));
+
+  const visibleMain  = MAIN_NAV.filter((i) => i.permission === null || hasPermission(role, i.permission));
+  const visibleAdmin = ADMIN_NAV.filter((i) => hasPermission(role, i.permission));
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -41,41 +48,47 @@ export function AppSidebar() {
           )}
         </Link>
       </SidebarHeader>
+
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Operations</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {main.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <Link to={item.url} className="flex items-center gap-2.5">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Administration</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {admin.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <Link to={item.url} className="flex items-center gap-2.5">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {visibleMain.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Operations</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleMain.map((item) => (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                      <Link to={item.url} className="flex items-center gap-2.5">
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {visibleAdmin.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleAdmin.map((item) => (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                      <Link to={item.url} className="flex items-center gap-2.5">
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
     </Sidebar>
   );

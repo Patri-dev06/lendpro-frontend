@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/api";
 import { useRole } from "@/lib/role-context";
 import { formatPHP } from "@/lib/format";
 import { toast } from "sonner";
+import { PermissionGuard } from "@/components/shared/AccessRestricted";
 
 interface Collector {
   id: number;
@@ -90,6 +91,7 @@ function CollectorsPage() {
   );
 
   return (
+    <PermissionGuard permission="collectors:read">
     <div className="space-y-6">
       <PageHeader
         title="Collectors"
@@ -203,6 +205,7 @@ function CollectorsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </PermissionGuard>
   );
 }
 

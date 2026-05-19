@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFoo
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest } from "@/lib/api";
 import { useRole, ROLE_LABELS, type Role } from "@/lib/role-context";
+import { PermissionGuard } from "@/components/shared/AccessRestricted";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -82,6 +83,7 @@ function UsersPage() {
   );
 
   return (
+    <PermissionGuard permission="users:read">
     <div className="space-y-6">
       <PageHeader
         title="User management"
@@ -190,6 +192,7 @@ function UsersPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </PermissionGuard>
   );
 }
 

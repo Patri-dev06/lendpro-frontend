@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { loans, clientById, generateSchedule } from "@/lib/mock-data";
 import { formatPHP, formatDate } from "@/lib/format";
+import { PermissionGuard } from "@/components/shared/AccessRestricted";
 
 export const Route = createFileRoute("/_app/schedule")({
   head: () => ({ meta: [{ title: "Collection Schedule — BuenaMano" }] }),
@@ -22,6 +23,7 @@ function SchedulePage() {
   const rows = generateSchedule(loan, 7);
 
   return (
+    <PermissionGuard permission="schedule:read">
     <div className="space-y-6">
       <PageHeader
         title="Automated collection schedule"
@@ -100,6 +102,7 @@ function SchedulePage() {
         </div>
       </div>
     </div>
+    </PermissionGuard>
   );
 }
 

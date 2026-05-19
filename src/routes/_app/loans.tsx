@@ -6,6 +6,7 @@ import { ActiveLoanTable } from "@/components/loans/ActiveLoanTable";
 import { apiRequest } from "@/lib/api";
 import { useRole } from "@/lib/role-context";
 import { toast } from "sonner";
+import { PermissionGuard } from "@/components/shared/AccessRestricted";
 
 export const Route = createFileRoute("/_app/loans")({
   head: () => ({ meta: [{ title: "Loans — BuenaMano" }] }),
@@ -36,10 +37,12 @@ function LoansPage() {
   }
 
   return (
+    <PermissionGuard permission="loans:read">
     <div className="space-y-6">
       <PageHeader title="Loan management" subtitle="Encode new loans and review the active loan ledger." />
       <LoanCreateSection token={token} onLoanCreated={handleLoanCreated} />
       <ActiveLoanTable loans={loans} loading={loading} />
     </div>
+    </PermissionGuard>
   );
 }

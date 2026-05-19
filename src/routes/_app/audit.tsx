@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest } from "@/lib/api";
 import { useRole } from "@/lib/role-context";
+import { PermissionGuard } from "@/components/shared/AccessRestricted";
 import { toast } from "sonner";
 
 interface AuditLog {
@@ -96,6 +97,7 @@ function AuditPage() {
   }, [logs, q, date]);
 
   return (
+    <PermissionGuard permission="audit:read">
     <div className="space-y-6">
       <PageHeader
         title="Audit logs"
@@ -199,5 +201,6 @@ function AuditPage() {
         </div>
       </div>
     </div>
+    </PermissionGuard>
   );
 }

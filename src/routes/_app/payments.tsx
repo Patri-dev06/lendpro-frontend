@@ -4,6 +4,7 @@ import { useRole } from "@/lib/role-context";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AccessRestricted } from "@/components/payments/AccessRestricted";
+import { PermissionGuard } from "@/components/shared/AccessRestricted";
 import { DirectInputTab } from "@/components/payments/DirectInputTab";
 import { UploadExcelTab } from "@/components/payments/UploadExcelTab";
 import { CollectorSummaryTab } from "@/components/payments/CollectorSummaryTab";
@@ -19,6 +20,7 @@ function PaymentsPage() {
   const isClerk = role === "accounting_clerk";
 
   return (
+    <PermissionGuard permission="payments:read">
     <div className="space-y-6">
       <PageHeader
         title="Payments & Collections"
@@ -44,5 +46,6 @@ function PaymentsPage() {
         <TabsContent value="ledger" className="mt-5"><ClientLedgerTab /></TabsContent>
       </Tabs>
     </div>
+    </PermissionGuard>
   );
 }

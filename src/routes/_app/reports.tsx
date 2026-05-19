@@ -10,6 +10,7 @@ import { collectors, loans, payments, clientById, collectorById } from "@/lib/mo
 import { formatPHP, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { PermissionGuard } from "@/components/shared/AccessRestricted";
 
 export const Route = createFileRoute("/_app/reports")({
   head: () => ({ meta: [{ title: "Reports — BuenaMano" }] }),
@@ -31,6 +32,7 @@ function ReportsPage() {
   const [active, setActive] = useState(categories[0]);
 
   return (
+    <PermissionGuard permission="reports:read">
     <div className="space-y-6">
       <PageHeader title="Report center" subtitle="Generate, preview and export operational reports." />
 
@@ -125,6 +127,7 @@ function ReportsPage() {
         </div>
       </div>
     </div>
+    </PermissionGuard>
   );
 }
 
