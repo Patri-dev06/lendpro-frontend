@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Users, UserPlus, Repeat, AlertTriangle, AlertOctagon, CheckCircle2,
-  Wallet, TrendingUp, ArrowUpRight,
+  Wallet, TrendingUp, ArrowUpRight, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,51 +16,107 @@ import { CollectionEfficiencyBanner } from "@/components/dashboard/CollectionEff
 import { ChartCard } from "@/components/dashboard/ChartCard";
 import { FinStat } from "@/components/dashboard/FinStat";
 import { BankBalanceCard } from "@/components/dashboard/BankBalanceCard";
-import { clients, loans, collectors, collectorById, clientById, monthlyReleases, outstandingTrend, monthlyCollection } from "@/lib/mock-data";
+import { apiRequest } from "@/lib/api";
+import { useRole } from "@/lib/role-context";
 import { formatPHP } from "@/lib/format";
 import { tokenColors, tooltipStyle } from "@/components/dashboard/dashboardConstants";
 
+interface ApiLoan {
+  id: number;
+  number: string;
+  status: string;
+  loan_type: string;
+  principal: number;
+  total_receivable: number;
+  daily_payment: number;
+  current_balance: number;
+  client: { id: number; name: string; store_name: string };
+  collector: { id: number; name: string };
+}
+
+interface DashboardStats {
+  counts: { active: number; new: number; renew: number; overdue: number; past_due: number; paid: number };
+  financials: { total_receivable: number; total_outstanding: number; total_collected: number; collection_efficiency: number };
+  monthly_releases: Array<{ month: string; releases: string }>;
+  monthly_collection: Array<{ month: string; collected: string }>;
+  collector_stats: Array<{ id: number; name: string }>;
+  loans: ApiLoan[];
+}
+
+function shortMonth(ym: string): string {
+  const [y, m] = ym.split("-");
+  return new Date(Number(y), Number(m) - 1).toLocaleString("en-US", { month: "short" });
+}
+
 export function AdminDashboard() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const { token } = useRole();
+  const [stats, setStats]   = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch]  = useState("");
+  const [statusFilter, setStatusFilter]    = useState("all");
   const [collectorFilter, setCollectorFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [typeFilter, setTypeFilter]        = useState("all");
 
-  const totalOutstanding = loans.reduce((s, l) => s + l.currentBalance, 0);
-  const totalReceivable = loans.reduce((s, l) => s + l.totalReceivable, 0);
-  const totalCollected = totalReceivable - totalOutstanding;
-  const collectionEfficiency = Math.round((totalCollected / totalReceivable) * 100);
+  const load = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await apiRequest<DashboardStats>("GET", "dashboard/stats", { token });
+      setStats(data);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
-  const currentMonth = monthlyReleases[monthlyReleases.length - 1];
-  const releasesThisMonth = currentMonth?.releases ?? 0;
-  const releasesThisYear = monthlyReleases.reduce((s, m) => s + m.releases, 0);
-  const collectionThisMonth = monthlyCollection[monthlyCollection.length - 1]?.collected ?? 0;
-  const collectionThisYear = monthlyCollection.reduce((s, m) => s + m.collected, 0);
+  useEffect(() => { load(); }, [load]);
 
-  const counts = useMemo(() => ({
-    active: loans.filter((l) => l.status !== "paid").length,
-    newL: clients.filter((c) => c.type === "new").length,
-    renew: clients.filter((c) => c.type === "renew").length,
-    overdue: loans.filter((l) => l.status === "overdue").length,
-    pastDue: loans.filter((l) => l.status === "past-due").length,
-    paid: loans.filter((l) => l.status === "paid").length,
-  }), []);
+  if (loading || !stats) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
+  const { counts, financials } = stats;
+
+  const monthlyReleases = stats.monthly_releases.map((r) => ({
+    month: shortMonth(r.month),
+    releases: Number(r.releases),
+  }));
+
+  const monthlyCollection = stats.monthly_collection.map((r) => ({
+    month: shortMonth(r.month),
+    collected: Number(r.collected),
+  }));
+
+  const normalActive = counts.active - counts.overdue - counts.past_due;
   const donut = [
-    { name: "Active", value: loans.filter((l) => l.status === "new" || l.status === "renew").length, color: tokenColors.primary },
+    { name: "Active", value: Math.max(0, normalActive), color: tokenColors.primary },
     { name: "Overdue", value: counts.overdue, color: tokenColors.warning },
-    { name: "Past Due", value: counts.pastDue, color: tokenColors.destructive },
+    { name: "Past Due", value: counts.past_due, color: tokenColors.destructive },
     { name: "Fully Paid", value: counts.paid, color: tokenColors.success },
   ];
 
-  const filtered = loans.filter((l) => {
-    const c = clientById(l.clientId);
+  const collectors = Array.from(
+    new Map(stats.loans.map((l) => [l.collector.id, l.collector])).values()
+  );
+
+  const filtered = stats.loans.filter((l) => {
     if (statusFilter !== "all" && l.status !== statusFilter) return false;
-    if (collectorFilter !== "all" && l.collectorId !== collectorFilter) return false;
-    if (typeFilter !== "all" && c.type !== typeFilter) return false;
-    if (search && !(`${c.name} ${c.storeName}`.toLowerCase().includes(search.toLowerCase()))) return false;
+    if (collectorFilter !== "all" && String(l.collector.id) !== collectorFilter) return false;
+    if (typeFilter !== "all" && l.loan_type !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const matches = `${l.client.name} ${l.client.store_name}`.toLowerCase().includes(q);
+      if (!matches) return false;
+    }
     return true;
   });
+
+  const releasesThisMonth  = monthlyReleases[monthlyReleases.length - 1]?.releases ?? 0;
+  const releasesThisYear   = monthlyReleases.reduce((s, m) => s + m.releases, 0);
+  const collectionThisMonth = monthlyCollection[monthlyCollection.length - 1]?.collected ?? 0;
+  const collectionThisYear  = monthlyCollection.reduce((s, m) => s + m.collected, 0);
 
   return (
     <div className="space-y-6">
@@ -74,25 +130,29 @@ export function AdminDashboard() {
         }
       />
 
-      <CollectionEfficiencyBanner rate={collectionEfficiency} collected={totalCollected} receivable={totalReceivable} />
+      <CollectionEfficiencyBanner
+        rate={financials.collection_efficiency}
+        collected={financials.total_collected}
+        receivable={financials.total_receivable}
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-        <StatCard label="Active Borrowers" value={String(counts.active)} icon={Users} hint="across all collectors" trend={4} />
-        <StatCard label="New Loaners" value={String(counts.newL)} icon={UserPlus} tone="info" hint="this cycle" trend={12} />
-        <StatCard label="Renew Loaners" value={String(counts.renew)} icon={Repeat} tone="purple" hint="returning clients" trend={6} />
-        <StatCard label="Overdue +3 Days" value={String(counts.overdue)} icon={AlertTriangle} tone="warning" hint="needs follow-up" trend={-2} />
-        <StatCard label="Past Due +30 Days" value={String(counts.pastDue)} icon={AlertOctagon} tone="destructive" hint="critical accounts" trend={1} />
-        <StatCard label="Fully Paid" value={String(counts.paid)} icon={CheckCircle2} tone="success" hint="this month" trend={9} />
-        <StatCard label="Outstanding" value={formatPHP(totalOutstanding, { compact: true })} icon={Wallet} hint="portfolio balance" trend={3} />
+        <StatCard label="Active Borrowers"   value={String(counts.active)}   icon={Users}        hint="across all collectors" />
+        <StatCard label="New Loaners"        value={String(counts.new)}      icon={UserPlus}     tone="info" hint="this cycle" />
+        <StatCard label="Renew Loaners"      value={String(counts.renew)}    icon={Repeat}       tone="purple" hint="returning clients" />
+        <StatCard label="Overdue +3 Days"    value={String(counts.overdue)}  icon={AlertTriangle} tone="warning" hint="needs follow-up" />
+        <StatCard label="Past Due +30 Days"  value={String(counts.past_due)} icon={AlertOctagon}  tone="destructive" hint="critical accounts" />
+        <StatCard label="Fully Paid"         value={String(counts.paid)}     icon={CheckCircle2} tone="success" hint="all time" />
+        <StatCard label="Outstanding" value={formatPHP(financials.total_outstanding, { compact: true })} icon={Wallet} hint="portfolio balance" />
       </div>
 
       <div className="rounded-2xl border bg-card p-5 shadow-sm">
         <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Financial Summary</p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <FinStat label="Releases This Month" value={formatPHP(releasesThisMonth, { compact: true })} icon={ArrowUpRight} tone="info" />
-          <FinStat label="Releases This Year" value={formatPHP(releasesThisYear, { compact: true })} icon={ArrowUpRight} tone="info" sub="running total" />
+          <FinStat label="Releases This Year"  value={formatPHP(releasesThisYear, { compact: true })}  icon={ArrowUpRight} tone="info" sub="running total" />
           <FinStat label="Collection This Month" value={formatPHP(collectionThisMonth, { compact: true })} icon={TrendingUp} tone="success" />
-          <FinStat label="Collection This Year" value={formatPHP(collectionThisYear, { compact: true })} icon={TrendingUp} tone="success" sub="running total" />
+          <FinStat label="Collection This Year"  value={formatPHP(collectionThisYear, { compact: true })}  icon={TrendingUp} tone="success" sub="running total" />
           <BankBalanceCard />
         </div>
       </div>
@@ -117,25 +177,27 @@ export function AdminDashboard() {
             ))}
           </div>
         </ChartCard>
+
         <ChartCard title="Monthly loan releases" subtitle="Total disbursed per month">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={monthlyReleases}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="month" stroke="var(--muted-foreground)" fontSize={11} />
-              <YAxis stroke="var(--muted-foreground)" fontSize={11} tickFormatter={(v) => `₱${v / 1000}k`} />
+              <YAxis stroke="var(--muted-foreground)" fontSize={11} tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`} />
               <Tooltip {...tooltipStyle()} formatter={(v: number) => formatPHP(v)} />
               <Bar dataKey="releases" fill={tokenColors.primary} radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="Outstanding balance trend" subtitle="Portfolio receivables">
+
+        <ChartCard title="Monthly collections" subtitle="Total collected per month">
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={outstandingTrend}>
+            <LineChart data={monthlyCollection}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="month" stroke="var(--muted-foreground)" fontSize={11} />
-              <YAxis stroke="var(--muted-foreground)" fontSize={11} tickFormatter={(v) => `₱${v / 1000000}M`} />
+              <YAxis stroke="var(--muted-foreground)" fontSize={11} tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`} />
               <Tooltip {...tooltipStyle()} formatter={(v: number) => formatPHP(v)} />
-              <Line type="monotone" dataKey="outstanding" stroke={tokenColors.primary} strokeWidth={2.5} dot={{ r: 3, fill: tokenColors.primary }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="collected" stroke={tokenColors.success} strokeWidth={2.5} dot={{ r: 3, fill: tokenColors.success }} activeDot={{ r: 5 }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -154,10 +216,10 @@ export function AdminDashboard() {
               { v: "overdue", l: "Overdue" }, { v: "past-due", l: "Past Due" }, { v: "paid", l: "Fully Paid" },
             ]} />
             <SelectTriggerSm value={collectorFilter} onChange={setCollectorFilter} placeholder="Collector" options={[
-              { v: "all", l: "All collectors" }, ...collectors.map((c) => ({ v: c.id, l: c.name })),
+              { v: "all", l: "All collectors" }, ...collectors.map((c) => ({ v: String(c.id), l: c.name })),
             ]} />
-            <SelectTriggerSm value={typeFilter} onChange={setTypeFilter} placeholder="Client type" options={[
-              { v: "all", l: "All types" }, { v: "new", l: "New" }, { v: "renew", l: "Renew" },
+            <SelectTriggerSm value={typeFilter} onChange={setTypeFilter} placeholder="Loan type" options={[
+              { v: "all", l: "All types" }, { v: "new-loan", l: "New Loan" }, { v: "reloan", l: "Reloan" }, { v: "reconstruct", l: "Reconstruct" },
             ]} />
           </div>
         </div>
@@ -171,30 +233,29 @@ export function AdminDashboard() {
                 <TableHead className="text-right">Receivable</TableHead>
                 <TableHead className="text-right">Daily</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
-                <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Collector</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((l) => {
-                const c = clientById(l.clientId);
-                return (
-                  <TableRow key={l.id}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{c.storeName}</TableCell>
-                    <TableCell className="text-right num">{formatPHP(l.principal)}</TableCell>
-                    <TableCell className="text-right num">{formatPHP(l.totalReceivable)}</TableCell>
-                    <TableCell className="text-right num">{formatPHP(l.dailyPayment)}</TableCell>
-                    <TableCell className="text-right num font-semibold">{formatPHP(l.currentBalance)}</TableCell>
-                    <TableCell><StatusBadge status={c.type} /></TableCell>
-                    <TableCell><StatusBadge status={l.status} /></TableCell>
-                    <TableCell className="text-muted-foreground">{collectorById(l.collectorId).name}</TableCell>
-                  </TableRow>
-                );
-              })}
+              {filtered.map((l) => (
+                <TableRow key={l.id}>
+                  <TableCell className="font-medium">{l.client.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{l.client.store_name}</TableCell>
+                  <TableCell className="text-right num">{formatPHP(l.principal)}</TableCell>
+                  <TableCell className="text-right num">{formatPHP(l.total_receivable)}</TableCell>
+                  <TableCell className="text-right num">{formatPHP(l.daily_payment)}</TableCell>
+                  <TableCell className="text-right num font-semibold">{formatPHP(l.current_balance)}</TableCell>
+                  <TableCell><StatusBadge status={l.status} /></TableCell>
+                  <TableCell className="text-muted-foreground">{l.collector.name}</TableCell>
+                </TableRow>
+              ))}
               {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">No accounts match your filters.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+                    No accounts match your filters.
+                  </TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>

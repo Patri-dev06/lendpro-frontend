@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Check, LogIn, UserPlus, Users, Banknote, CircleDollarSign, Trash2, RefreshCw, Settings, FileText, UserCog } from "lucide-react";
+import { Bell, Check, Banknote, CircleDollarSign, UserPlus, UserCheck } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -8,38 +8,35 @@ import { useRole } from "@/lib/role-context";
 
 interface Notification {
   id: number;
-  action: string;
-  record: string | null;
-  description: string | null;
-  performed_by: string | null;
-  performed_at: string;
+  type: string;
+  title: string;
+  body: string;
+  created_at: string;
   is_read: boolean;
 }
 
-function actionIcon(action: string) {
-  if (action.startsWith("LOGIN") || action.startsWith("LOGOUT") || action.startsWith("REGISTER")) {
-    return action === "REGISTER" ? <UserPlus className="h-3.5 w-3.5" /> : <LogIn className="h-3.5 w-3.5" />;
+function typeIcon(type: string) {
+  switch (type) {
+    case "loan_created":    return <Banknote className="h-3.5 w-3.5" />;
+    case "payment_recorded": return <CircleDollarSign className="h-3.5 w-3.5" />;
+    case "user_pending":    return <UserPlus className="h-3.5 w-3.5" />;
+    case "user_approved":   return <UserCheck className="h-3.5 w-3.5" />;
+    default:                return <Bell className="h-3.5 w-3.5" />;
   }
-  if (action.includes("CLIENT"))  return <Users className="h-3.5 w-3.5" />;
-  if (action.includes("LOAN"))    return <Banknote className="h-3.5 w-3.5" />;
-  if (action.includes("PAYMENT")) return <CircleDollarSign className="h-3.5 w-3.5" />;
-  if (action.includes("USER"))    return <UserCog className="h-3.5 w-3.5" />;
-  if (action.includes("DELETE"))  return <Trash2 className="h-3.5 w-3.5" />;
-  if (action.includes("SCHEDULE")) return <RefreshCw className="h-3.5 w-3.5" />;
-  if (action.includes("SETTING")) return <Settings className="h-3.5 w-3.5" />;
-  return <FileText className="h-3.5 w-3.5" />;
 }
 
-function actionColor(action: string): string {
-  if (action.includes("DELETE"))  return "bg-destructive/10 text-destructive";
-  if (action.includes("CREATE") || action === "REGISTER") return "bg-emerald-100 text-emerald-700";
-  if (action.includes("UPDATE") || action.includes("PAYMENT")) return "bg-blue-100 text-blue-700";
-  if (action.startsWith("LOGIN") || action.startsWith("LOGOUT")) return "bg-muted text-muted-foreground";
-  return "bg-primary/10 text-primary";
+function typeColor(type: string): string {
+  switch (type) {
+    case "loan_created":     return "bg-emerald-100 text-emerald-700";
+    case "payment_recorded": return "bg-blue-100 text-blue-700";
+    case "user_pending":     return "bg-amber-100 text-amber-700";
+    case "user_approved":    return "bg-emerald-100 text-emerald-700";
+    default:                 return "bg-primary/10 text-primary";
+  }
 }
 
 function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  const diff  = Date.now() - new Date(iso).getTime();
   const mins  = Math.floor(diff / 60_000);
   const hours = Math.floor(diff / 3_600_000);
   const days  = Math.floor(diff / 86_400_000);
@@ -52,13 +49,13 @@ function relativeTime(iso: string): string {
 
 export function NotificationBell() {
   const { token } = useRole();
-  const [open, setOpen]  = useState(false);
-  const [items, setItems] = useState<Notification[]>([]);
+  const [open, setOpen]   = useState(false);
+  const [items, setItems]  = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetch = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!token) return;
     try {
       const data = await apiRequest<{ notifications: Notification[]; unread_count: number }>(
@@ -69,15 +66,15 @@ export function NotificationBell() {
       setItems(data.notifications);
       setUnread(data.unread_count);
     } catch {
-      // silently ignore — polling failure shouldn't surface to user
+      // silently ignore polling failures
     }
   }, [token]);
 
   useEffect(() => {
-    fetch();
-    intervalRef.current = setInterval(fetch, 30_000);
+    load();
+    intervalRef.current = setInterval(load, 30_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [fetch]);
+  }, [load]);
 
   async function handleMarkRead() {
     if (!token || unread === 0) return;
@@ -93,7 +90,7 @@ export function NotificationBell() {
 
   function handleOpen(v: boolean) {
     setOpen(v);
-    if (v) fetch();
+    if (v) load();
   }
 
   return (
@@ -149,24 +146,16 @@ export function NotificationBell() {
                   key={n.id}
                   className={`flex gap-3 px-4 py-3 transition-colors ${n.is_read ? "" : "bg-primary/3"}`}
                 >
-                  {/* Icon badge */}
-                  <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${actionColor(n.action)}`}>
-                    {actionIcon(n.action)}
+                  <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${typeColor(n.type)}`}>
+                    {typeIcon(n.type)}
                   </span>
 
-                  {/* Content */}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium leading-tight">
-                      {n.description ?? n.action}
-                    </p>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      {n.performed_by && <span className="truncate max-w-25">{n.performed_by}</span>}
-                      {n.performed_by && <span>·</span>}
-                      <span className="shrink-0">{relativeTime(n.performed_at)}</span>
-                    </div>
+                    <p className="text-xs font-semibold leading-tight">{n.title}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground leading-snug">{n.body}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground/70">{relativeTime(n.created_at)}</p>
                   </div>
 
-                  {/* Unread dot */}
                   {!n.is_read && (
                     <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                   )}
@@ -176,10 +165,9 @@ export function NotificationBell() {
           )}
         </ScrollArea>
 
-        {/* Footer */}
         {items.length > 0 && (
           <div className="border-t px-4 py-2.5 text-center">
-            <p className="text-xs text-muted-foreground">Showing last {items.length} activities</p>
+            <p className="text-xs text-muted-foreground">Showing last {items.length} notifications</p>
           </div>
         )}
       </PopoverContent>
