@@ -197,11 +197,39 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
   );
 }
 
+/* ---------- PASSWORD RULES ---------- */
+const PW_RULES = [
+  { label: "At least 8 characters",     test: (p: string) => p.length >= 8 },
+  { label: "One uppercase letter (A–Z)", test: (p: string) => /[A-Z]/.test(p) },
+  { label: "One lowercase letter (a–z)", test: (p: string) => /[a-z]/.test(p) },
+  { label: "One number (0–9)",           test: (p: string) => /[0-9]/.test(p) },
+  { label: "One special character (!@#…)",test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+];
+
+function PasswordStrength({ password }: { password: string }) {
+  if (!password) return null;
+  return (
+    <ul className="mt-2 space-y-1">
+      {PW_RULES.map((r) => {
+        const ok = r.test(password);
+        return (
+          <li key={r.label} className={`flex items-center gap-1.5 text-xs ${ok ? "text-emerald-600" : "text-muted-foreground"}`}>
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${ok ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+            {r.label}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /* ---------- REGISTER FORM ---------- */
 function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
   const navigate = useNavigate();
   const { register } = useRole();
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleInitial, setMiddleInitial] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("collector");
   const [password, setPassword] = useState("");
@@ -211,11 +239,15 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const mismatch = confirm.length > 0 && password !== confirm;
+  const pwValid   = PW_RULES.every((r) => r.test(password));
+  const mismatch  = confirm.length > 0 && password !== confirm;
+  const canSubmit = pwValid && !mismatch && !loading;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (mismatch) return;
+    if (!canSubmit) return;
+    const mi   = middleInitial.trim() ? `${middleInitial.trim().charAt(0).toUpperCase()}.` : "";
+    const name = [firstName.trim(), mi, lastName.trim()].filter(Boolean).join(" ");
     setError("");
     setLoading(true);
     try {
@@ -235,35 +267,38 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
         <p className="mt-1.5 text-sm text-muted-foreground">Fill in the details to register a new user.</p>
       </div>
 
-      <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
         {error && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
             {error}
           </div>
         )}
+
         <div className="space-y-1.5">
-          <Label htmlFor="full-name">Full name</Label>
-          <Input
-            id="full-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Juan dela Cruz"
-            required
-            disabled={loading}
-          />
+          <Label htmlFor="first-name">First name</Label>
+          <Input id="first-name" value={firstName} onChange={(e) => setFirstName(e.target.value)}
+            placeholder="Juan" required disabled={loading} />
         </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="middle-initial">Middle initial</Label>
+            <span className="text-xs text-muted-foreground">(optional)</span>
+          </div>
+          <Input id="middle-initial" value={middleInitial} onChange={(e) => setMiddleInitial(e.target.value.slice(0, 1))}
+            placeholder="Leave blank if none" maxLength={1} disabled={loading} className="uppercase" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="last-name">Last name</Label>
+          <Input id="last-name" value={lastName} onChange={(e) => setLastName(e.target.value)}
+            placeholder="dela Cruz" required disabled={loading} />
+        </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="reg-email">Email</Label>
-          <Input
-            id="reg-email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="juan@buenamano.ph"
-            required
-            disabled={loading}
-          />
+          <Input id="reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+            placeholder="juan@buenamano.ph" required disabled={loading} />
         </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="reg-role">Role</Label>
           <Select value={role} onValueChange={(v) => setRole(v as Role)} disabled={loading}>
@@ -275,56 +310,39 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
             </SelectContent>
           </Select>
         </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="reg-password">Password</Label>
           <div className="relative">
-            <Input
-              id="reg-password"
-              type={showPw ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min. 8 characters"
-              className="pr-10"
-              required
-              disabled={loading}
-            />
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setShowPw((v) => !v)}
-            >
+            <Input id="reg-password" type={showPw ? "text" : "password"} value={password}
+              onChange={(e) => setPassword(e.target.value)} placeholder="Create a strong password"
+              className={`pr-10 ${password && !pwValid ? "border-amber-400 focus-visible:ring-amber-400" : ""}`}
+              required disabled={loading} />
+            <button type="button" onClick={() => setShowPw((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
               {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+          <PasswordStrength password={password} />
         </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="confirm-password">Confirm password</Label>
           <div className="relative">
-            <Input
-              id="confirm-password"
-              type={showConfirm ? "text" : "password"}
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Re-enter password"
+            <Input id="confirm-password" type={showConfirm ? "text" : "password"} value={confirm}
+              onChange={(e) => setConfirm(e.target.value)} placeholder="Re-enter password"
               className={`pr-10 ${mismatch ? "border-destructive focus-visible:ring-destructive" : ""}`}
-              required
-              disabled={loading}
-            />
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setShowConfirm((v) => !v)}
-            >
+              required disabled={loading} />
+            <button type="button" onClick={() => setShowConfirm((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
               {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           {mismatch && <p className="text-xs text-destructive">Passwords do not match.</p>}
         </div>
-        <Button
-          type="submit"
-          disabled={mismatch || loading}
-          className="h-11 w-full bg-primary text-primary-foreground hover:bg-primary-glow disabled:opacity-50"
-        >
+
+        <Button type="submit" disabled={!canSubmit}
+          className="h-11 w-full bg-primary text-primary-foreground hover:bg-primary-glow disabled:opacity-50">
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           {loading ? "Creating account…" : "Create account"}
         </Button>
