@@ -65,10 +65,11 @@ function ClientsPage() {
   const [emailClient, setEmailClient] = useState<Client | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!token) return; // auth not ready yet — wait for token to be set
     try {
       const [cls, cols] = await Promise.all([
-        apiRequest<Client[]>("GET", "clients", { token: token ?? undefined }),
-        apiRequest<Collector[]>("GET", "collectors", { token: token ?? undefined }),
+        apiRequest<Client[]>("GET", "clients", { token }),
+        apiRequest<Collector[]>("GET", "collectors", { token }),
       ]);
       setClients(cls);
       setCollectors(cols);
