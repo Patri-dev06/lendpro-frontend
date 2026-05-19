@@ -7,14 +7,15 @@ import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
-import { ROLE_LABELS, useRole } from "@/lib/role-context";
+import { ROLE_LABELS, useRole, type Role } from "@/lib/role-context";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { formatDate } from "@/lib/format";
 
 export function TopBar() {
   const navigate = useNavigate();
-  const { role, user, logout } = useRole();
+  const { role, setRole, user, logout } = useRole();
   const displayName = user?.name ?? "User";
   const initials = displayName.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
 
@@ -26,11 +27,9 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background px-3 md:px-4">
 
-      {/* Left — sidebar trigger + divider */}
       <SidebarTrigger className="-ml-1 h-8 w-8 shrink-0" />
       <Separator orientation="vertical" className="h-5 shrink-0" />
 
-      {/* Mobile brand — only visible when sidebar is off-screen */}
       <div className="flex items-center gap-2 lg:hidden">
         <img src="/logo.png" alt="" className="h-7 w-7 object-contain mix-blend-multiply" />
         <span className="font-display text-sm font-bold">
@@ -38,7 +37,6 @@ export function TopBar() {
         </span>
       </div>
 
-      {/* Search — center */}
       <div className="relative mx-2 hidden flex-1 max-w-sm md:block">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -47,20 +45,15 @@ export function TopBar() {
         />
       </div>
 
-      {/* Right actions */}
       <div className="ml-auto flex items-center gap-1">
-
-        {/* Date — hidden on small screens */}
         <span className="hidden text-xs text-muted-foreground tabular-nums sm:block mr-2">
           {formatDate(new Date(), { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
         </span>
 
-        {/* Notifications */}
         <NotificationBell />
 
         <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
 
-        {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-accent">
@@ -92,6 +85,16 @@ export function TopBar() {
                 </div>
               </div>
             </DropdownMenuLabel>
+
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Preview role view</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={role} onValueChange={(v) => setRole(v as Role)}>
+              {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
+                <DropdownMenuRadioItem key={r} value={r} className="text-sm">
+                  {ROLE_LABELS[r]}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
 
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
