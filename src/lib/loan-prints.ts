@@ -1,11 +1,38 @@
-import type { Client, Loan, Collector, LoanType } from "@/lib/mock-data";
 import { formatPHP, formatDate } from "@/lib/format";
 import { LOAN_TYPE_LABELS } from "@/lib/loan-constants";
 
+/* Minimal shapes needed for printing — matches API snake_case */
+export interface PrintClient {
+  name: string;
+  store_name: string;
+  address: string;
+  phone: string;
+}
+
+export interface PrintCollector {
+  name: string;
+}
+
+export interface PrintLoan {
+  number: string;
+  loan_type: string;
+  principal: number;
+  interest: number;
+  service_charge: number;
+  total_receivable: number;
+  daily_payment: number;
+  term_days: number;
+  current_balance: number;
+  release_date: string;
+  due_date: string;
+  client: PrintClient;
+  collector: PrintCollector;
+}
+
 interface PrintTILAParams {
-  selectedClient: Client;
-  selectedCollector: Collector;
-  loanType: LoanType;
+  client: PrintClient;
+  collector: PrintCollector;
+  loanType: string;
   date: string;
   principal: number;
   interest: number;
@@ -46,10 +73,10 @@ export function printTILA(p: PrintTILAParams) {
 <div class="sec">
   <div class="sec-title">Parties</div>
   <div class="row"><span class="lbl">Creditor</span><span class="val">BuenaMano Lending Corporation</span></div>
-  <div class="row"><span class="lbl">Borrower</span><span class="val">${p.selectedClient.name}</span></div>
-  <div class="row"><span class="lbl">Business / Store</span><span class="val">${p.selectedClient.storeName}</span></div>
+  <div class="row"><span class="lbl">Borrower</span><span class="val">${p.client.name}</span></div>
+  <div class="row"><span class="lbl">Business / Store</span><span class="val">${p.client.store_name}</span></div>
   <div class="row"><span class="lbl">Loan Reference</span><span class="val">${loanNum}</span></div>
-  <div class="row"><span class="lbl">Loan Type</span><span class="val">${LOAN_TYPE_LABELS[p.loanType]}</span></div>
+  <div class="row"><span class="lbl">Loan Type</span><span class="val">${LOAN_TYPE_LABELS[p.loanType as keyof typeof LOAN_TYPE_LABELS] ?? p.loanType}</span></div>
   <div class="row"><span class="lbl">Release Date</span><span class="val">${p.date}</span></div>
 </div>
 <div class="sec">
@@ -65,7 +92,7 @@ export function printTILA(p: PrintTILAParams) {
   <div class="row"><span class="lbl">Daily Payment</span><span class="val">${formatPHP(p.daily)}</span></div>
   <div class="row"><span class="lbl">Term of Loan</span><span class="val">${p.termDays} days (Sundays excluded)</span></div>
   <div class="row"><span class="lbl">Due Date</span><span class="val">${p.dueDate ? formatDate(p.dueDate) : "—"}</span></div>
-  <div class="row"><span class="lbl">Assigned Collector</span><span class="val">${p.selectedCollector.name}</span></div>
+  <div class="row"><span class="lbl">Assigned Collector</span><span class="val">${p.collector.name}</span></div>
 </div>
 <div class="sec">
   <div class="sec-title">Declaration</div>
@@ -81,9 +108,9 @@ export function printTILA(p: PrintTILAParams) {
 }
 
 interface PrintInvoiceParams {
-  selectedClient: Client;
-  selectedCollector: Collector;
-  loanType: LoanType;
+  client: PrintClient;
+  collector: PrintCollector;
+  loanType: string;
   date: string;
   principal: number;
   interest: number;
@@ -124,11 +151,11 @@ export function printInvoice(p: PrintInvoiceParams) {
 <div class="div"></div>
 <div style="margin-bottom:16px">
   <div class="bill-lbl">Bill to</div>
-  <div class="bill-name">${p.selectedClient.name}</div>
-  <div>${p.selectedClient.storeName}</div>
-  <div>${p.selectedClient.address}</div>
-  <div>Phone: ${p.selectedClient.phone}</div>
-  <div style="margin-top:4px">Loan Type: ${LOAN_TYPE_LABELS[p.loanType]}</div>
+  <div class="bill-name">${p.client.name}</div>
+  <div>${p.client.store_name}</div>
+  <div>${p.client.address}</div>
+  <div>Phone: ${p.client.phone}</div>
+  <div style="margin-top:4px">Loan Type: ${LOAN_TYPE_LABELS[p.loanType as keyof typeof LOAN_TYPE_LABELS] ?? p.loanType}</div>
 </div>
 <table>
   <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
@@ -141,16 +168,16 @@ export function printInvoice(p: PrintInvoiceParams) {
 </table>
 <div class="footer">
   <p>Thank you for your business. Daily payment of ${formatPHP(p.daily)} for ${p.termDays} days (Sundays excluded). Due date: ${p.dueDate ? formatDate(p.dueDate) : "—"}.</p>
-  <p>Collector: ${p.selectedCollector.name}${p.remarks ? ` — Remarks: ${p.remarks}` : ""}</p>
+  <p>Collector: ${p.collector.name}${p.remarks ? ` — Remarks: ${p.remarks}` : ""}</p>
 </div>
 </body></html>`);
   win.document.close(); win.focus(); win.print();
 }
 
 interface PrintLoanFormParams {
-  selectedClient: Client;
-  selectedCollector: Collector;
-  loanType: LoanType;
+  client: PrintClient;
+  collector: PrintCollector;
+  loanType: string;
   date: string;
   principal: number;
   interest: number;
@@ -193,18 +220,18 @@ export function printLoanForm(p: PrintLoanFormParams) {
 <div class="sec-title">Loan Information</div>
 <div class="frow">
   <div class="field"><div class="flbl">Loan Number</div><div class="fval">${loanNum}</div></div>
-  <div class="field"><div class="flbl">Loan Type</div><div class="fval">${LOAN_TYPE_LABELS[p.loanType]}</div></div>
+  <div class="field"><div class="flbl">Loan Type</div><div class="fval">${LOAN_TYPE_LABELS[p.loanType as keyof typeof LOAN_TYPE_LABELS] ?? p.loanType}</div></div>
   <div class="field"><div class="flbl">Release Date</div><div class="fval">${p.date}</div></div>
   <div class="field"><div class="flbl">Due Date</div><div class="fval">${p.dueDate ? formatDate(p.dueDate) : "—"}</div></div>
 </div>
 <div class="sec-title">Borrower Information</div>
 <div class="frow">
-  <div class="field"><div class="flbl">Full Name</div><div class="fval">${p.selectedClient.name}</div></div>
-  <div class="field"><div class="flbl">Business / Store Name</div><div class="fval">${p.selectedClient.storeName}</div></div>
+  <div class="field"><div class="flbl">Full Name</div><div class="fval">${p.client.name}</div></div>
+  <div class="field"><div class="flbl">Business / Store Name</div><div class="fval">${p.client.store_name}</div></div>
 </div>
 <div class="frow">
-  <div class="field"><div class="flbl">Address</div><div class="fval">${p.selectedClient.address}</div></div>
-  <div class="field"><div class="flbl">Phone</div><div class="fval">${p.selectedClient.phone}</div></div>
+  <div class="field"><div class="flbl">Address</div><div class="fval">${p.client.address}</div></div>
+  <div class="field"><div class="flbl">Phone</div><div class="fval">${p.client.phone}</div></div>
 </div>
 <div class="sec-title">Loan Amount Summary</div>
 <table class="amt-table">
@@ -218,7 +245,7 @@ export function printLoanForm(p: PrintLoanFormParams) {
 <div class="frow">
   <div class="field"><div class="flbl">Daily Payment</div><div class="fval">${formatPHP(p.daily)}</div></div>
   <div class="field"><div class="flbl">Term of Loan</div><div class="fval">${p.termDays} days (Sundays excluded)</div></div>
-  <div class="field"><div class="flbl">Assigned Collector</div><div class="fval">${p.selectedCollector.name}</div></div>
+  <div class="field"><div class="flbl">Assigned Collector</div><div class="fval">${p.collector.name}</div></div>
 </div>
 ${p.remarks ? `<div class="frow"><div class="field"><div class="flbl">Remarks</div><div class="fval">${p.remarks}</div></div></div>` : ""}
 <div class="terms">
@@ -233,9 +260,10 @@ ${p.remarks ? `<div class="frow"><div class="field"><div class="flbl">Remarks</d
   win.document.close(); win.focus(); win.print();
 }
 
-export function printLedger(loan: Loan, client: Client, collector: Collector) {
+export function printLedger(loan: PrintLoan) {
   const win = window.open("", "_blank");
   if (!win) return;
+  const { client, collector } = loan;
   win.document.write(`<!DOCTYPE html><html><head><title>Client Ledger</title>
 <style>
   body{font-family:Arial,sans-serif;font-size:11px;margin:0;padding:32px;color:#111}
@@ -256,19 +284,19 @@ export function printLedger(loan: Loan, client: Client, collector: Collector) {
 <div class="info-grid">
   <div class="info-row"><span class="info-lbl">Client Name</span><span class="info-val">${client.name}</span></div>
   <div class="info-row"><span class="info-lbl">Loan Number</span><span class="info-val">${loan.number}</span></div>
-  <div class="info-row"><span class="info-lbl">Store / Business</span><span class="info-val">${client.storeName}</span></div>
-  <div class="info-row"><span class="info-lbl">Loan Type</span><span class="info-val">${LOAN_TYPE_LABELS[loan.loanType]}</span></div>
+  <div class="info-row"><span class="info-lbl">Store / Business</span><span class="info-val">${client.store_name}</span></div>
+  <div class="info-row"><span class="info-lbl">Loan Type</span><span class="info-val">${LOAN_TYPE_LABELS[loan.loan_type as keyof typeof LOAN_TYPE_LABELS] ?? loan.loan_type}</span></div>
   <div class="info-row"><span class="info-lbl">Address</span><span class="info-val">${client.address}</span></div>
-  <div class="info-row"><span class="info-lbl">Release Date</span><span class="info-val">${loan.releaseDate}</span></div>
+  <div class="info-row"><span class="info-lbl">Release Date</span><span class="info-val">${loan.release_date}</span></div>
   <div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">${client.phone}</span></div>
-  <div class="info-row"><span class="info-lbl">Due Date</span><span class="info-val">${loan.dueDate}</span></div>
+  <div class="info-row"><span class="info-lbl">Due Date</span><span class="info-val">${loan.due_date}</span></div>
   <div class="info-row"><span class="info-lbl">Principal</span><span class="info-val">${formatPHP(loan.principal)}</span></div>
   <div class="info-row"><span class="info-lbl">Interest</span><span class="info-val">${formatPHP(loan.interest)}</span></div>
   <div class="info-row"><span class="info-lbl">Total Loan Amount</span><span class="info-val">${formatPHP(loan.principal + loan.interest)}</span></div>
-  <div class="info-row"><span class="info-lbl">Processing Fee</span><span class="info-val">${formatPHP(loan.serviceCharge)}</span></div>
-  <div class="info-row"><span class="info-lbl">Starting Balance</span><span class="info-val">${formatPHP(loan.totalReceivable)}</span></div>
-  <div class="info-row"><span class="info-lbl">Daily Payment</span><span class="info-val">${formatPHP(loan.dailyPayment)}</span></div>
-  <div class="info-row"><span class="info-lbl">Term of Loan</span><span class="info-val">${loan.termDays} days</span></div>
+  <div class="info-row"><span class="info-lbl">Processing Fee</span><span class="info-val">${formatPHP(loan.service_charge)}</span></div>
+  <div class="info-row"><span class="info-lbl">Starting Balance</span><span class="info-val">${formatPHP(loan.total_receivable)}</span></div>
+  <div class="info-row"><span class="info-lbl">Daily Payment</span><span class="info-val">${formatPHP(loan.daily_payment)}</span></div>
+  <div class="info-row"><span class="info-lbl">Term of Loan</span><span class="info-val">${loan.term_days} days</span></div>
   <div class="info-row"><span class="info-lbl">Collector</span><span class="info-val">${collector.name}</span></div>
 </div>
 <div class="div1"></div>
@@ -277,22 +305,22 @@ export function printLedger(loan: Loan, client: Client, collector: Collector) {
     <tr><th>#</th><th>Date</th><th class="right">Daily Due</th><th class="right">Amount Paid</th><th class="right">Running Balance</th><th>Status</th></tr>
   </thead>
   <tbody>
-    ${Array.from({ length: loan.termDays }, (_, i) => {
-      const paidDays = Math.round((loan.totalReceivable - loan.currentBalance) / loan.dailyPayment);
+    ${Array.from({ length: loan.term_days }, (_, i) => {
+      const paidDays = Math.round((loan.total_receivable - loan.current_balance) / loan.daily_payment);
       const isPaid = i < paidDays;
-      const bal = Math.max(0, loan.totalReceivable - (Math.min(i + 1, paidDays) * loan.dailyPayment));
+      const bal = Math.max(0, loan.total_receivable - (Math.min(i + 1, paidDays) * loan.daily_payment));
       return `<tr>
         <td>${i + 1}</td><td></td>
-        <td class="right">${formatPHP(loan.dailyPayment)}</td>
-        <td class="right ${isPaid ? "paid" : ""}">${isPaid ? formatPHP(loan.dailyPayment) : "—"}</td>
+        <td class="right">${formatPHP(loan.daily_payment)}</td>
+        <td class="right ${isPaid ? "paid" : ""}">${isPaid ? formatPHP(loan.daily_payment) : "—"}</td>
         <td class="right">${formatPHP(bal)}</td>
         <td class="${isPaid ? "paid" : "missed"}">${isPaid ? "Paid" : "Pending"}</td>
       </tr>`;
     }).join("")}
     <tr class="total-row">
       <td colspan="3">Total Paid</td>
-      <td class="right">${formatPHP(loan.totalReceivable - loan.currentBalance)}</td>
-      <td class="right">${formatPHP(loan.currentBalance)}</td>
+      <td class="right">${formatPHP(loan.total_receivable - loan.current_balance)}</td>
+      <td class="right">${formatPHP(loan.current_balance)}</td>
       <td></td>
     </tr>
   </tbody>

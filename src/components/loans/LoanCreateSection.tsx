@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Sparkles, Printer, FileText, ClipboardList } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Sparkles, Printer, FileText, ClipboardList, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,48 +7,174 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field } from "@/components/shared/Field";
 import { SumRow } from "@/components/shared/SumRow";
-import { clients, collectors, clientById, collectorById } from "@/lib/mock-data";
-import type { LoanType } from "@/lib/mock-data";
 import { formatPHP, formatDate, addNonSundayDays } from "@/lib/format";
-import { LOAN_TYPE_LABELS, TERM_OPTIONS } from "@/lib/loan-constants";
+import { LOAN_TYPE_LABELS, TERM_OPTIONS, type LoanType } from "@/lib/loan-constants";
 import { printTILA, printInvoice, printLoanForm } from "@/lib/loan-prints";
+import { apiRequest } from "@/lib/api";
 import { toast } from "sonner";
 
-export function LoanCreateSection() {
-  const [loanType, setLoanType] = useState<LoanType>("new-loan");
-  const [client, setClient] = useState(clients[0].id);
+interface ApiClient {
+  id: number;
+  name: string;
+  store_name: string;
+  address: string;
+  phone: string;
+  email: string | null;
+  type: string;
+  status: string;
+}
+
+interface ApiCollector {
+  id: number;
+  name: string;
+  code: string;
+  area: string;
+}
+
+export interface ApiLoan {
+  id: number;
+  number: string;
+  client_id: number;
+  collector_id: number;
+  loan_type: string;
+  principal: number;
+  interest: number;
+  service_charge: number;
+  total_receivable: number;
+  daily_payment: number;
+  term_days: number;
+  current_balance: number;
+  release_date: string;
+  due_date: string;
+  expected_end_date: string;
+  status: string;
+  remarks: string | null;
+  client: ApiClient;
+  collector: ApiCollector;
+}
+
+interface Props {
+  token: string | null;
+  onLoanCreated: (loan: ApiLoan) => void;
+}
+
+export function LoanCreateSection({ token, onLoanCreated }: Props) {
+  const [clients, setClients]     = useState<ApiClient[]>([]);
+  const [collectors, setCollectors] = useState<ApiCollector[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  const [loanType, setLoanType]   = useState<LoanType>("new-loan");
+  const [clientId, setClientId]   = useState<number | null>(null);
+  const [collectorId, setCollectorId] = useState<number | null>(null);
   const [principal, setPrincipal] = useState(10000);
-  const [interest, setInterest] = useState(1500);
-  const [sc, setSc] = useState(500);
-  const [termDays, setTermDays] = useState<number>(45);
-  const [daily, setDaily] = useState(267);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [collector, setCollector] = useState(collectors[0].id);
-  const [remarks, setRemarks] = useState("");
+  const [interest, setInterest]   = useState(0);
+  const [sc, setSc]               = useState(0);
+  const [termDays, setTermDays]   = useState<number>(45);
+  const [daily, setDaily]         = useState(0);
+  const [date, setDate]           = useState(new Date().toISOString().slice(0, 10));
+  const [remarks, setRemarks]     = useState("");
+  const [saving, setSaving]       = useState(false);
+  const [errors, setErrors]       = useState<Record<string, string>>({});
+
+  const fetchDropdowns = useCallback(async () => {
+    if (!token) return;
+    try {
+      const [cls, cols] = await Promise.all([
+        apiRequest<ApiClient[]>("GET", "clients", { token }),
+        apiRequest<ApiCollector[]>("GET", "collectors", { token }),
+      ]);
+      setClients(cls);
+      setCollectors(cols);
+      if (cls.length > 0)  setClientId(cls[0].id);
+      if (cols.length > 0) setCollectorId(cols[0].id);
+    } catch {
+      toast.error("Failed to load clients / collectors.");
+    } finally {
+      setLoadingData(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
 
   const totalLoanAmount = principal + interest;
   const totalReceivable = totalLoanAmount + sc;
   const dueDate = date ? addNonSundayDays(date, termDays) : null;
 
+  function recalcDaily(p: number, i: number, s: number, t: number) {
+    const tr = p + i + s;
+    if (t > 0 && tr > 0) setDaily(Math.ceil(tr / t));
+  }
+
   function handleTermChange(t: number) {
     setTermDays(t);
-    if (totalReceivable > 0) setDaily(Math.ceil(totalReceivable / t));
+    recalcDaily(principal, interest, sc, t);
   }
 
-  function handleAmountChange(p: number, i: number, s: number) {
-    const tr = p + i + s;
-    if (termDays > 0 && tr > 0) setDaily(Math.ceil(tr / termDays));
+  function validate() {
+    const e: Record<string, string> = {};
+    if (!clientId)         e.client    = "Select a client.";
+    if (!collectorId)      e.collector = "Select a collector.";
+    if (principal <= 0)    e.principal = "Principal must be greater than 0.";
+    if (interest < 0)      e.interest  = "Interest cannot be negative.";
+    if (sc < 0)            e.sc        = "Processing fee cannot be negative.";
+    if (daily <= 0)        e.daily     = "Daily payment must be greater than 0.";
+    if (!date)             e.date      = "Release date is required.";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   }
 
-  const selectedClient = clientById(client);
-  const selectedCollector = collectorById(collector);
-  const canPrint = principal > 0 && interest > 0 && !!date;
+  async function handleCreate() {
+    if (!validate() || !token) return;
+    setSaving(true);
+    try {
+      const loan = await apiRequest<ApiLoan>("POST", "loans", {
+        token,
+        body: {
+          client_id:      clientId,
+          collector_id:   collectorId,
+          loan_type:      loanType,
+          principal,
+          interest,
+          service_charge: sc,
+          daily_payment:  daily,
+          term_days:      termDays,
+          release_date:   date,
+          remarks:        remarks || null,
+        },
+      });
+      toast.success(`${LOAN_TYPE_LABELS[loanType]} created`, {
+        description: `${loan.number} — ${termDays}-day schedule generated.`,
+      });
+      onLoanCreated(loan);
+      // Reset form
+      setPrincipal(10000); setInterest(0); setSc(0); setTermDays(45);
+      setDaily(0); setRemarks(""); setErrors({});
+      setDate(new Date().toISOString().slice(0, 10));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create loan.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const selectedClient    = clients.find((c) => c.id === clientId);
+  const selectedCollector = collectors.find((c) => c.id === collectorId);
+  const canPrint = !!selectedClient && !!selectedCollector && principal > 0 && !!date;
 
   const printParams = {
-    selectedClient, selectedCollector, loanType, date,
-    principal, interest, sc, totalLoanAmount, totalReceivable,
-    daily, termDays, dueDate, remarks,
+    client:         selectedClient ?? { name: "", store_name: "", address: "", phone: "" },
+    collector:      selectedCollector ?? { name: "" },
+    loanType, date, principal, interest, sc,
+    totalLoanAmount, totalReceivable, daily, termDays, dueDate, remarks,
   };
+
+  if (loadingData) {
+    return (
+      <div className="flex h-40 items-center justify-center rounded-2xl border bg-card">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
@@ -69,32 +195,60 @@ export function LoanCreateSection() {
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Select client">
-            <Select value={client} onValueChange={setClient}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} — {c.storeName}</SelectItem>)}</SelectContent>
+          <Field label="Select client" error={errors.client}>
+            <Select
+              value={clientId?.toString() ?? ""}
+              onValueChange={(v) => { setClientId(Number(v)); setErrors((e) => ({ ...e, client: "" })); }}
+            >
+              <SelectTrigger className={errors.client ? "border-destructive" : ""}><SelectValue placeholder="Choose client…" /></SelectTrigger>
+              <SelectContent>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={c.id.toString()}>{c.name} — {c.store_name}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </Field>
-          <Field label="Assigned collector">
-            <Select value={collector} onValueChange={setCollector}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{collectors.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+
+          <Field label="Assigned collector" error={errors.collector}>
+            <Select
+              value={collectorId?.toString() ?? ""}
+              onValueChange={(v) => { setCollectorId(Number(v)); setErrors((e) => ({ ...e, collector: "" })); }}
+            >
+              <SelectTrigger className={errors.collector ? "border-destructive" : ""}><SelectValue placeholder="Choose collector…" /></SelectTrigger>
+              <SelectContent>
+                {collectors.map((c) => (
+                  <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </Field>
-          <Field label="Principal loan (₱)">
-            <Input type="number" value={principal} onChange={(e) => {
-              const v = Number(e.target.value) || 0;
-              setPrincipal(v);
-              handleAmountChange(v, interest, sc);
-            }} />
+
+          <Field label="Principal loan (₱)" error={errors.principal}>
+            <Input
+              type="number" min={0} value={principal}
+              className={errors.principal ? "border-destructive" : ""}
+              onChange={(e) => {
+                const v = Number(e.target.value) || 0;
+                setPrincipal(v);
+                recalcDaily(v, interest, sc, termDays);
+                setErrors((err) => ({ ...err, principal: "" }));
+              }}
+            />
           </Field>
-          <Field label="Interest (₱)">
-            <Input type="number" value={interest} onChange={(e) => {
-              const v = Number(e.target.value) || 0;
-              setInterest(v);
-              handleAmountChange(principal, v, sc);
-            }} />
+
+          <Field label="Interest (₱)" error={errors.interest}>
+            <Input
+              type="number" min={0} value={interest}
+              className={errors.interest ? "border-destructive" : ""}
+              onChange={(e) => {
+                const v = Number(e.target.value) || 0;
+                setInterest(v);
+                recalcDaily(principal, v, sc, termDays);
+                setErrors((err) => ({ ...err, interest: "" }));
+              }}
+            />
           </Field>
+
           <Field label="Term of loan">
             <Select value={String(termDays)} onValueChange={(v) => handleTermChange(Number(v))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -103,48 +257,68 @@ export function LoanCreateSection() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Processing fee (₱)">
-            <Input type="number" value={sc} onChange={(e) => {
-              const v = Number(e.target.value) || 0;
-              setSc(v);
-              handleAmountChange(principal, interest, v);
-            }} />
+
+          <Field label="Processing fee (₱)" error={errors.sc}>
+            <Input
+              type="number" min={0} value={sc}
+              className={errors.sc ? "border-destructive" : ""}
+              onChange={(e) => {
+                const v = Number(e.target.value) || 0;
+                setSc(v);
+                recalcDaily(principal, interest, v, termDays);
+                setErrors((err) => ({ ...err, sc: "" }));
+              }}
+            />
           </Field>
-          <Field label="Loan release date">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+
+          <Field label="Loan release date" error={errors.date}>
+            <Input
+              type="date" value={date}
+              className={errors.date ? "border-destructive" : ""}
+              onChange={(e) => { setDate(e.target.value); setErrors((err) => ({ ...err, date: "" })); }}
+            />
           </Field>
+
           <Field label="Due date (computed)">
             <Input value={dueDate ? formatDate(dueDate) : "—"} readOnly className="bg-muted/40 text-muted-foreground" />
           </Field>
-          <Field label="Daily payment (₱)">
-            <Input type="number" value={daily} onChange={(e) => setDaily(Number(e.target.value) || 0)} />
+
+          <Field label="Daily payment (₱)" error={errors.daily}>
+            <Input
+              type="number" min={0} value={daily}
+              className={errors.daily ? "border-destructive" : ""}
+              onChange={(e) => { setDaily(Number(e.target.value) || 0); setErrors((err) => ({ ...err, daily: "" })); }}
+            />
           </Field>
+
           <Field label="Remarks (optional)" full>
-            <Textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Any internal notes about this loan…" />
+            <Textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)}
+              placeholder="Any internal notes about this loan…" />
           </Field>
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
-          <Button variant="outline">Cancel</Button>
-          <Button variant="outline" disabled={!canPrint} onClick={() => printTILA(printParams)}>
+          <Button variant="outline" onClick={() => printTILA(printParams)} disabled={!canPrint}>
             <FileText className="mr-1.5 h-4 w-4" />Print TILA
           </Button>
-          <Button variant="outline" disabled={!canPrint} onClick={() => printInvoice(printParams)}>
+          <Button variant="outline" onClick={() => printInvoice(printParams)} disabled={!canPrint}>
             <ClipboardList className="mr-1.5 h-4 w-4" />Print Invoice
           </Button>
-          <Button variant="outline" disabled={!canPrint} onClick={() => printLoanForm(printParams)}>
+          <Button variant="outline" onClick={() => printLoanForm(printParams)} disabled={!canPrint}>
             <Printer className="mr-1.5 h-4 w-4" />Print Loan Form
           </Button>
           <Button
             className="bg-primary text-primary-foreground hover:bg-primary-glow"
-            onClick={() => toast.success(`${LOAN_TYPE_LABELS[loanType]} created — ${termDays}-day schedule generated`)}
+            onClick={handleCreate}
+            disabled={saving}
           >
-            <Sparkles className="mr-1.5 h-4 w-4" />
-            Create loan &amp; generate schedule
+            {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+            {saving ? "Creating…" : "Create loan & generate schedule"}
           </Button>
         </div>
       </div>
 
+      {/* Summary panel */}
       <div className="rounded-2xl border bg-linear-to-br from-primary to-primary-glow p-6 text-primary-foreground shadow-md">
         <h3 className="font-display text-base font-semibold">Loan summary</h3>
         <p className="text-xs opacity-75">Live calculation based on inputs</p>
@@ -161,7 +335,9 @@ export function LoanCreateSection() {
           <SumRow label="Term of loan" value={`${termDays} days`} />
           <SumRow label="Due date" value={dueDate ? formatDate(dueDate) : "—"} />
         </dl>
-        <p className="mt-5 text-[11px] opacity-70">Total Loan Amount = Principal + Interest. Starting Balance = Total Loan Amount + Processing Fee. Sundays not counted in term.</p>
+        <p className="mt-5 text-[11px] opacity-70">
+          Total Loan Amount = Principal + Interest. Starting Balance = Total + Processing Fee. Sundays not counted in term.
+        </p>
       </div>
     </div>
   );
