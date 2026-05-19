@@ -1,15 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Download, FileSpreadsheet, FileText, Printer, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Download, FileSpreadsheet, FileText, Loader2, Printer, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { collectors, loans, payments, clientById, collectorById } from "@/lib/mock-data";
+import { apiRequest } from "@/lib/api";
+import { useRole } from "@/lib/role-context";
 import { formatPHP, formatDate } from "@/lib/format";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { PermissionGuard } from "@/components/shared/AccessRestricted";
 
 export const Route = createFileRoute("/_app/reports")({
@@ -17,118 +18,391 @@ export const Route = createFileRoute("/_app/reports")({
   component: ReportsPage,
 });
 
-const categories = [
-  "Daily Collection Report",
-  "Borrower Payment History",
-  "Active Loans Report",
-  "Fully Paid Loans Report",
-  "Overdue +3 Days Report",
-  "Past Due +30 Days Report",
-  "Collector Performance Report",
-  "Portfolio Collection Summary",
+type Category =
+  | "daily-collection"
+  | "active-loans"
+  | "paid-loans"
+  | "overdue"
+  | "past-due"
+  | "collector-performance"
+  | "monthly-collection"
+  | "monthly-releases";
+
+const CATEGORIES: { id: Category; label: string }[] = [
+  { id: "daily-collection",       label: "Daily Collection Report" },
+  { id: "active-loans",           label: "Active Loans Report" },
+  { id: "paid-loans",             label: "Fully Paid Loans" },
+  { id: "overdue",                label: "Overdue +3 Days" },
+  { id: "past-due",               label: "Past Due +30 Days" },
+  { id: "collector-performance",  label: "Collector Performance" },
+  { id: "monthly-collection",     label: "Monthly Collection" },
+  { id: "monthly-releases",       label: "Monthly Releases" },
 ];
 
+interface ApiCollector { id: number; name: string; }
+
 function ReportsPage() {
-  const [active, setActive] = useState(categories[0]);
+  const { token } = useRole();
+  const [active, setActive]         = useState<Category>("daily-collection");
+  const [collectors, setCollectors] = useState<ApiCollector[]>([]);
+
+  // Filters
+  const today = new Date().toISOString().slice(0, 10);
+  const thisMonth = today.slice(0, 7);
+  const [fromDate, setFromDate]     = useState(today);
+  const [toDate, setToDate]         = useState(today);
+  const [month, setMonth]           = useState(thisMonth);
+  const [collectorId, setCollectorId] = useState("all");
+
+  // Results
+  const [rows, setRows]       = useState<unknown[]>([]);
+  const [summary, setSummary] = useState({ expected: 0, collected: 0, balance: 0, count: 0 });
+  const [loading, setLoading] = useState(false);
+
+  const fetchCollectors = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await apiRequest<ApiCollector[]>("GET", "collectors", { token });
+      setCollectors(data);
+    } catch { /* silent */ }
+  }, [token]);
+
+  useEffect(() => { fetchCollectors(); }, [fetchCollectors]);
+
+  const fetchReport = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setRows([]);
+    setSummary({ expected: 0, collected: 0, balance: 0, count: 0 });
+    try {
+      if (active === "daily-collection") {
+        const params = new URLSearchParams();
+        if (fromDate) params.set("date", fromDate);
+        if (collectorId !== "all") params.set("collector_id", collectorId);
+        const data = await apiRequest<unknown[]>("GET", `payments?${params}`, { token });
+        setRows(data);
+        const arr = data as Array<{ amount: number; new_balance: number }>;
+        setSummary({ expected: 0, collected: arr.reduce((s, p) => s + p.amount, 0), balance: 0, count: arr.length });
+
+      } else if (active === "active-loans" || active === "overdue" || active === "past-due" || active === "paid-loans") {
+        const statusMap: Record<string, string> = {
+          "active-loans": "", "overdue": "overdue", "past-due": "past-due", "paid-loans": "paid",
+        };
+        const params = new URLSearchParams();
+        const s = statusMap[active];
+        if (s) params.set("status", s);
+        if (collectorId !== "all") params.set("collector_id", collectorId);
+        const data = await apiRequest<unknown[]>("GET", `loans?${params}`, { token });
+        const loans = data as Array<{ status: string; daily_payment: number; current_balance: number; total_receivable: number }>;
+        const filtered = active === "active-loans" ? loans.filter((l) => l.status !== "paid") : loans;
+        setRows(filtered);
+        setSummary({
+          expected:  filtered.reduce((s, l) => s + l.daily_payment, 0),
+          collected: filtered.reduce((s, l) => s + (l.total_receivable - l.current_balance), 0),
+          balance:   filtered.reduce((s, l) => s + l.current_balance, 0),
+          count:     filtered.length,
+        });
+
+      } else if (active === "collector-performance") {
+        const data = await apiRequest<{ collectors: unknown[] }>("GET", `reports/collector-summary?month=${month}`, { token });
+        setRows(data.collectors);
+        const arr = data.collectors as Array<{ expected: number; collected: number }>;
+        setSummary({ expected: arr.reduce((s, c) => s + c.expected, 0), collected: arr.reduce((s, c) => s + c.collected, 0), balance: 0, count: arr.length });
+
+      } else if (active === "monthly-collection") {
+        const data = await apiRequest<unknown[]>("GET", "reports/monthly-collection", { token });
+        setRows(data);
+        const arr = data as Array<{ collected: number; transactions: number }>;
+        setSummary({ expected: 0, collected: arr.reduce((s, r) => s + Number(r.collected), 0), balance: 0, count: arr.reduce((s, r) => s + r.transactions, 0) });
+
+      } else if (active === "monthly-releases") {
+        const data = await apiRequest<unknown[]>("GET", "reports/monthly-releases", { token });
+        setRows(data);
+        const arr = data as Array<{ releases: number; count: number }>;
+        setSummary({ expected: 0, collected: arr.reduce((s, r) => s + Number(r.releases), 0), balance: 0, count: arr.reduce((s, r) => s + r.count, 0) });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load report.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token, active, fromDate, toDate, month, collectorId]);
+
+  // Auto-fetch on category change
+  useEffect(() => { fetchReport(); }, [fetchReport]);
+
+  function exportCsv() {
+    if (rows.length === 0) return;
+    const keys = Object.keys(rows[0] as object);
+    const header = keys.join(",");
+    const body = (rows as Record<string, unknown>[]).map((r) =>
+      keys.map((k) => JSON.stringify(r[k] ?? "")).join(",")
+    ).join("\n");
+    const blob = new Blob([header + "\n" + body], { type: "text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `${active}-report.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <PermissionGuard permission="reports:read">
     <div className="space-y-6">
       <PageHeader title="Report center" subtitle="Generate, preview and export operational reports." />
 
+      {/* Category cards */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {categories.map((c) => (
-          <button
-            key={c}
-            onClick={() => setActive(c)}
+        {CATEGORIES.map((c) => (
+          <button key={c.id} onClick={() => setActive(c.id)}
             className={cn(
               "rounded-2xl border bg-card p-4 text-left text-sm shadow-sm transition hover:border-primary-glow/40 hover:shadow-md",
-              active === c && "border-primary-glow/60 ring-2 ring-primary-glow/20"
-            )}
-          >
+              active === c.id && "border-primary-glow/60 ring-2 ring-primary-glow/20"
+            )}>
             <FileText className="h-5 w-5 text-primary-glow" />
-            <p className="mt-2 font-medium leading-tight">{c}</p>
+            <p className="mt-2 font-medium leading-tight">{c.label}</p>
             <p className="mt-1 text-xs text-muted-foreground">Tap to preview</p>
           </button>
         ))}
       </div>
 
       <div className="rounded-2xl border bg-card shadow-sm">
+        {/* Filters */}
         <div className="flex flex-wrap items-end justify-between gap-3 border-b p-5">
           <div>
-            <h3 className="font-display text-base font-semibold">{active}</h3>
-            <p className="text-xs text-muted-foreground">Filter, generate, then export.</p>
+            <h3 className="font-display text-base font-semibold">{CATEGORIES.find((c) => c.id === active)?.label}</h3>
+            <p className="text-xs text-muted-foreground">Filter, then export.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Input type="date" className="h-9 w-36" />
-            <Input type="date" className="h-9 w-36" />
-            <Select defaultValue="all">
-              <SelectTrigger className="h-9 w-40"><SelectValue placeholder="Collector" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All collectors</SelectItem>
-                {collectors.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select defaultValue="all">
-              <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
-                <SelectItem value="past-due">Past Due</SelectItem>
-                <SelectItem value="paid">Fully Paid</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={() => toast.success("Report generated")} className="h-9 bg-primary text-primary-foreground hover:bg-primary-glow"><Sparkles className="mr-1.5 h-4 w-4" />Generate</Button>
+            {/* Date filter — daily reports */}
+            {(active === "daily-collection") && (
+              <Input type="date" className="h-9 w-36" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            )}
+            {/* Date range — loan reports */}
+            {(active === "active-loans" || active === "overdue" || active === "past-due" || active === "paid-loans") && (
+              <>
+                <Input type="date" className="h-9 w-36" value={fromDate} onChange={(e) => setFromDate(e.target.value)} placeholder="From" />
+                <Input type="date" className="h-9 w-36" value={toDate}   onChange={(e) => setToDate(e.target.value)}   placeholder="To" />
+              </>
+            )}
+            {/* Month picker */}
+            {(active === "collector-performance" || active === "monthly-collection" || active === "monthly-releases") && (
+              <Input type="month" className="h-9 w-40" value={month} onChange={(e) => setMonth(e.target.value)} />
+            )}
+            {/* Collector filter */}
+            {(active === "daily-collection" || active === "active-loans" || active === "overdue" || active === "past-due") && (
+              <Select value={collectorId} onValueChange={setCollectorId}>
+                <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Collector" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All collectors</SelectItem>
+                  {collectors.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            <Button onClick={fetchReport} disabled={loading} className="h-9 bg-primary text-primary-foreground hover:bg-primary-glow">
+              {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
+              Refresh
+            </Button>
           </div>
         </div>
 
+        {/* Summary strip */}
         <div className="grid grid-cols-2 gap-3 p-5 md:grid-cols-4">
-          <Summary label="Total expected" value={formatPHP(loans.reduce((s, l) => s + l.dailyPayment, 0))} />
-          <Summary label="Total collected" value={formatPHP(payments.reduce((s, p) => s + p.amount, 0))} />
-          <Summary label="Outstanding balance" value={formatPHP(loans.reduce((s, l) => s + l.currentBalance, 0))} />
-          <Summary label="Accounts in report" value={String(loans.length)} />
+          {active === "daily-collection" && <>
+            <Summary label="Total collected"  value={formatPHP(summary.collected)} />
+            <Summary label="Transactions"     value={String(summary.count)} />
+          </>}
+          {(active === "active-loans" || active === "overdue" || active === "past-due" || active === "paid-loans") && <>
+            <Summary label="Daily expected"       value={formatPHP(summary.expected)} />
+            <Summary label="Total collected"      value={formatPHP(summary.collected)} />
+            <Summary label="Outstanding balance"  value={formatPHP(summary.balance)} />
+            <Summary label="Accounts in report"   value={String(summary.count)} />
+          </>}
+          {active === "collector-performance" && <>
+            <Summary label="Total expected"   value={formatPHP(summary.expected)} />
+            <Summary label="Total collected"  value={formatPHP(summary.collected)} />
+            <Summary label="Collectors"       value={String(summary.count)} />
+          </>}
+          {(active === "monthly-collection" || active === "monthly-releases") && <>
+            <Summary label={active === "monthly-collection" ? "Total collected" : "Total released"}
+                     value={formatPHP(summary.collected)} />
+            <Summary label="Total transactions" value={String(summary.count)} />
+          </>}
         </div>
 
+        {/* Data table */}
         <div className="overflow-x-auto px-5 pb-5">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Loan #</TableHead>
-                <TableHead>Collector</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="text-right">Balance</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payments.map((p) => {
-                const l = loans.find((x) => x.id === p.loanId)!;
-                return (
-                  <TableRow key={p.id}>
-                    <TableCell>{formatDate(p.date)}</TableCell>
-                    <TableCell className="font-medium">{clientById(p.clientId).name}</TableCell>
-                    <TableCell className="font-mono text-xs">{l.number}</TableCell>
-                    <TableCell>{collectorById(p.collectorId).name}</TableCell>
-                    <TableCell className="text-right num">{formatPHP(p.amount)}</TableCell>
-                    <TableCell className="text-right num">{formatPHP(p.newBalance)}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          {loading ? (
+            <div className="flex h-40 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+              No data found for the selected filters.
+            </div>
+          ) : (
+            <ReportTable category={active} rows={rows} />
+          )}
         </div>
 
+        {/* Footer actions */}
         <div className="flex flex-wrap items-center justify-end gap-2 border-t px-5 py-4">
-          <Button variant="outline" size="sm" onClick={() => toast.success("Exported to Excel")}><FileSpreadsheet className="mr-1.5 h-4 w-4" />Export Excel</Button>
-          <Button variant="outline" size="sm" onClick={() => toast.success("Exported to PDF")}><Download className="mr-1.5 h-4 w-4" />Export PDF</Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="mr-1.5 h-4 w-4" />Print</Button>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
+            <FileSpreadsheet className="mr-1.5 h-4 w-4" />Export CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="mr-1.5 h-4 w-4" />Print
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
+            <Download className="mr-1.5 h-4 w-4" />Export PDF
+          </Button>
         </div>
       </div>
     </div>
     </PermissionGuard>
   );
+}
+
+/* ---- Per-category table renderer ---- */
+function ReportTable({ category, rows }: { category: Category; rows: unknown[] }) {
+  if (category === "daily-collection") {
+    const data = rows as Array<{ id: number; payment_date: string; amount: number; previous_balance: number; new_balance: number; remarks: string | null; client: { name: string }; collector: { name: string }; loan?: { number: string } }>;
+    return (
+      <Table>
+        <TableHeader><TableRow>
+          <TableHead>Date</TableHead>
+          <TableHead>Client</TableHead>
+          <TableHead>Collector</TableHead>
+          <TableHead className="text-right">Amount</TableHead>
+          <TableHead className="text-right">New Balance</TableHead>
+          <TableHead>Remarks</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
+          {data.map((p) => (
+            <TableRow key={p.id}>
+              <TableCell>{formatDate(p.payment_date)}</TableCell>
+              <TableCell className="font-medium">{p.client.name}</TableCell>
+              <TableCell>{p.collector.name}</TableCell>
+              <TableCell className="text-right num font-medium">{formatPHP(p.amount)}</TableCell>
+              <TableCell className="text-right num">{formatPHP(p.new_balance)}</TableCell>
+              <TableCell className="text-xs text-muted-foreground">{p.remarks ?? "—"}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  }
+
+  if (category === "active-loans" || category === "overdue" || category === "past-due" || category === "paid-loans") {
+    const data = rows as Array<{ id: number; number: string; loan_type: string; principal: number; total_receivable: number; daily_payment: number; current_balance: number; status: string; due_date: string; client: { name: string; store_name: string }; collector: { name: string } }>;
+    return (
+      <Table>
+        <TableHeader><TableRow>
+          <TableHead>Loan #</TableHead>
+          <TableHead>Client</TableHead>
+          <TableHead>Collector</TableHead>
+          <TableHead className="text-right">Principal</TableHead>
+          <TableHead className="text-right">Total Receivable</TableHead>
+          <TableHead className="text-right">Balance</TableHead>
+          <TableHead>Due Date</TableHead>
+          <TableHead>Status</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
+          {data.map((l) => (
+            <TableRow key={l.id}>
+              <TableCell className="font-mono text-xs">{l.number}</TableCell>
+              <TableCell className="font-medium">{l.client.name}</TableCell>
+              <TableCell>{l.collector.name}</TableCell>
+              <TableCell className="text-right num">{formatPHP(l.principal)}</TableCell>
+              <TableCell className="text-right num">{formatPHP(l.total_receivable)}</TableCell>
+              <TableCell className="text-right num">{formatPHP(l.current_balance)}</TableCell>
+              <TableCell className="text-sm">{formatDate(l.due_date)}</TableCell>
+              <TableCell><span className="rounded-full border px-2 py-0.5 text-xs capitalize">{l.status}</span></TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  }
+
+  if (category === "collector-performance") {
+    const data = rows as Array<{ id: number; name: string; code: string; area: string; assigned: number; expected: number; collected: number; rate: number }>;
+    return (
+      <Table>
+        <TableHeader><TableRow>
+          <TableHead>Collector</TableHead>
+          <TableHead>Code</TableHead>
+          <TableHead>Area</TableHead>
+          <TableHead className="text-right">Clients</TableHead>
+          <TableHead className="text-right">Expected</TableHead>
+          <TableHead className="text-right">Collected</TableHead>
+          <TableHead className="text-right">Collection Rate</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
+          {data.map((c) => (
+            <TableRow key={c.id}>
+              <TableCell className="font-medium">{c.name}</TableCell>
+              <TableCell className="font-mono text-xs">{c.code}</TableCell>
+              <TableCell>{c.area}</TableCell>
+              <TableCell className="text-right">{c.assigned}</TableCell>
+              <TableCell className="text-right num">{formatPHP(c.expected)}</TableCell>
+              <TableCell className="text-right num">{formatPHP(c.collected)}</TableCell>
+              <TableCell className="text-right">
+                <span className={`font-semibold ${c.rate >= 80 ? "text-success" : c.rate >= 50 ? "text-amber-600" : "text-destructive"}`}>
+                  {c.rate}%
+                </span>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  }
+
+  if (category === "monthly-collection") {
+    const data = rows as Array<{ month: string; collected: number; transactions: number }>;
+    return (
+      <Table>
+        <TableHeader><TableRow>
+          <TableHead>Month</TableHead>
+          <TableHead className="text-right">Total Collected</TableHead>
+          <TableHead className="text-right">Transactions</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
+          {data.map((r) => (
+            <TableRow key={r.month}>
+              <TableCell className="font-medium">{r.month}</TableCell>
+              <TableCell className="text-right num font-semibold">{formatPHP(Number(r.collected))}</TableCell>
+              <TableCell className="text-right">{r.transactions}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  }
+
+  if (category === "monthly-releases") {
+    const data = rows as Array<{ month: string; releases: number; count: number }>;
+    return (
+      <Table>
+        <TableHeader><TableRow>
+          <TableHead>Month</TableHead>
+          <TableHead className="text-right">Total Released</TableHead>
+          <TableHead className="text-right">Loans Released</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
+          {data.map((r) => (
+            <TableRow key={r.month}>
+              <TableCell className="font-medium">{r.month}</TableCell>
+              <TableCell className="text-right num font-semibold">{formatPHP(Number(r.releases))}</TableCell>
+              <TableCell className="text-right">{r.count}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  }
+
+  return null;
 }
 
 function Summary({ label, value }: { label: string; value: string }) {

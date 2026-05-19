@@ -1,38 +1,99 @@
-import { useMemo, useRef, useState } from "react";
-import { BookOpen, Printer } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { BookOpen, Loader2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoItem } from "@/components/payments/InfoItem";
-import { loans, clientById, collectorById } from "@/lib/mock-data";
+import { apiRequest } from "@/lib/api";
+import { useRole } from "@/lib/role-context";
 import { formatPHP, formatDate } from "@/lib/format";
 import { LOAN_TYPE_LABELS } from "@/lib/loan-constants";
+import { toast } from "sonner";
+
+interface ApiLoanSummary {
+  id: number;
+  number: string;
+  status: string;
+  client: { name: string };
+}
+
+interface LedgerRow {
+  day: number;
+  scheduled_date: string;
+  expected: number;
+  actual: number;
+  previous_balance: number;
+  balance_after: number;
+  status: string;
+  remarks: string | null;
+}
+
+interface LedgerResponse {
+  loan: {
+    id: number;
+    number: string;
+    loan_type: string;
+    principal: number;
+    total_receivable: number;
+    daily_payment: number;
+    term_days: number;
+    current_balance: number;
+    release_date: string;
+    due_date: string;
+  };
+  client: { name: string; store_name: string; address: string; phone: string };
+  collector: { name: string };
+  schedule: LedgerRow[];
+  total_paid: number;
+  total_pending: number;
+}
 
 export function ClientLedgerTab() {
-  const activeLoans = loans.filter((l) => l.status !== "paid");
-  const [selectedLoanId, setSelectedLoanId] = useState(activeLoans[0]?.id ?? "");
+  const { token } = useRole();
+
+  const [loans, setLoans]           = useState<ApiLoanSummary[]>([]);
+  const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
+  const [ledger, setLedger]         = useState<LedgerResponse | null>(null);
+  const [loadingLoans, setLoadingLoans] = useState(true);
+  const [loadingLedger, setLoadingLedger] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
-  const loan = loans.find((l) => l.id === selectedLoanId);
-  const client = loan ? clientById(loan.clientId) : null;
-  const collector = loan ? collectorById(loan.collectorId) : null;
+  const fetchLoans = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await apiRequest<ApiLoanSummary[]>("GET", "loans", { token });
+      setLoans(data);
+      if (data.length > 0) setSelectedLoanId(data[0].id);
+    } catch {
+      toast.error("Failed to load loans.");
+    } finally {
+      setLoadingLoans(false);
+    }
+  }, [token]);
 
-  const ledgerRows = useMemo(() => {
-    if (!loan) return [];
-    return Array.from({ length: loan.termDays }, (_, i) => {
-      const paidDays = Math.round((loan.totalReceivable - loan.currentBalance) / loan.dailyPayment);
-      const isPaid = i < paidDays;
-      const prevBal = Math.max(0, loan.totalReceivable - i * loan.dailyPayment);
-      const newBal = Math.max(0, prevBal - (isPaid ? loan.dailyPayment : 0));
-      return { day: i + 1, due: loan.dailyPayment, paid: isPaid ? loan.dailyPayment : 0, balance: newBal, status: isPaid ? "Paid" : "Pending" };
-    });
-  }, [loan]);
+  const fetchLedger = useCallback(async (loanId: number) => {
+    if (!token) return;
+    setLoadingLedger(true);
+    try {
+      const data = await apiRequest<LedgerResponse>(
+        "GET", `reports/client-ledger?loan_id=${loanId}`, { token }
+      );
+      setLedger(data);
+    } catch {
+      toast.error("Failed to load ledger.");
+      setLedger(null);
+    } finally {
+      setLoadingLedger(false);
+    }
+  }, [token]);
 
-  const totalPaid = ledgerRows.reduce((s, r) => s + r.paid, 0);
+  useEffect(() => { fetchLoans(); }, [fetchLoans]);
+  useEffect(() => { if (selectedLoanId) fetchLedger(selectedLoanId); }, [selectedLoanId, fetchLedger]);
 
   function handlePrint() {
-    if (!loan || !client || !collector) return;
+    if (!ledger) return;
+    const { loan, client, collector } = ledger;
     const content = printRef.current?.innerHTML ?? "";
     const win = window.open("", "_blank");
     if (!win) return;
@@ -58,15 +119,15 @@ export function ClientLedgerTab() {
 <div class="info-grid">
   <div class="info-row"><span class="info-lbl">Client Name</span><span class="info-val">${client.name}</span></div>
   <div class="info-row"><span class="info-lbl">Loan Number</span><span class="info-val">${loan.number}</span></div>
-  <div class="info-row"><span class="info-lbl">Store / Business</span><span class="info-val">${client.storeName}</span></div>
-  <div class="info-row"><span class="info-lbl">Loan Type</span><span class="info-val">${LOAN_TYPE_LABELS[loan.loanType] ?? loan.loanType}</span></div>
+  <div class="info-row"><span class="info-lbl">Store / Business</span><span class="info-val">${client.store_name}</span></div>
+  <div class="info-row"><span class="info-lbl">Loan Type</span><span class="info-val">${LOAN_TYPE_LABELS[loan.loan_type as keyof typeof LOAN_TYPE_LABELS] ?? loan.loan_type}</span></div>
   <div class="info-row"><span class="info-lbl">Address</span><span class="info-val">${client.address}</span></div>
-  <div class="info-row"><span class="info-lbl">Release Date</span><span class="info-val">${loan.releaseDate}</span></div>
+  <div class="info-row"><span class="info-lbl">Release Date</span><span class="info-val">${loan.release_date}</span></div>
   <div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">${client.phone}</span></div>
-  <div class="info-row"><span class="info-lbl">Due Date</span><span class="info-val">${loan.dueDate}</span></div>
-  <div class="info-row"><span class="info-lbl">Starting Balance</span><span class="info-val">${formatPHP(loan.totalReceivable)}</span></div>
-  <div class="info-row"><span class="info-lbl">Daily Payment</span><span class="info-val">${formatPHP(loan.dailyPayment)}</span></div>
-  <div class="info-row"><span class="info-lbl">Term of Loan</span><span class="info-val">${loan.termDays} days</span></div>
+  <div class="info-row"><span class="info-lbl">Due Date</span><span class="info-val">${loan.due_date}</span></div>
+  <div class="info-row"><span class="info-lbl">Starting Balance</span><span class="info-val">${formatPHP(loan.total_receivable)}</span></div>
+  <div class="info-row"><span class="info-lbl">Daily Payment</span><span class="info-val">${formatPHP(loan.daily_payment)}</span></div>
+  <div class="info-row"><span class="info-lbl">Term of Loan</span><span class="info-val">${loan.term_days} collection days</span></div>
   <div class="info-row"><span class="info-lbl">Collector</span><span class="info-val">${collector.name}</span></div>
 </div>
 ${content}
@@ -74,7 +135,7 @@ ${content}
   <div class="sig"><br/><br/>Signature of Borrower / Date</div>
   <div class="sig"><br/><br/>Verified by (Collector) / Date</div>
 </div>
-<div style="margin-top:16px;font-size:9px;color:#888">Printed: ${new Date().toLocaleDateString("en-PH")} — LendPro Loan &amp; Collection</div>
+<div style="margin-top:16px;font-size:9px;color:#888">Printed: ${new Date().toLocaleDateString("en-PH")} — BuenaMano Lending Corporation</div>
 </body></html>`);
     win.document.close(); win.focus(); win.print();
   }
@@ -84,36 +145,47 @@ ${content}
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Select Borrower / Loan</Label>
-          <Select value={selectedLoanId} onValueChange={setSelectedLoanId}>
-            <SelectTrigger className="h-9 w-72">
-              <SelectValue placeholder="Select a loan…" />
-            </SelectTrigger>
-            <SelectContent>
-              {loans.map((l) => {
-                const c = clientById(l.clientId);
-                return <SelectItem key={l.id} value={l.id}>{c.name} — {l.number}</SelectItem>;
-              })}
-            </SelectContent>
-          </Select>
+          {loadingLoans ? (
+            <div className="flex h-9 w-72 items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />Loading…
+            </div>
+          ) : (
+            <Select value={String(selectedLoanId ?? "")} onValueChange={(v) => setSelectedLoanId(Number(v))}>
+              <SelectTrigger className="h-9 w-72"><SelectValue placeholder="Select a loan…" /></SelectTrigger>
+              <SelectContent>
+                {loans.map((l) => (
+                  <SelectItem key={l.id} value={String(l.id)}>
+                    {l.client.name} — {l.number}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
-        <Button variant="outline" className="ml-auto" onClick={handlePrint} disabled={!loan}>
+        <Button variant="outline" className="ml-auto" onClick={handlePrint} disabled={!ledger || loadingLedger}>
           <Printer className="mr-2 h-4 w-4" />Print Ledger
         </Button>
       </div>
 
-      {loan && client && collector ? (
+      {loadingLedger ? (
+        <div className="flex h-48 items-center justify-center rounded-2xl border bg-card">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : ledger ? (
         <>
+          {/* Loan info card */}
           <div className="grid grid-cols-2 gap-3 rounded-2xl border bg-card p-5 shadow-sm sm:grid-cols-4">
-            <InfoItem label="Client" value={client.name} />
-            <InfoItem label="Loan #" value={loan.number} />
-            <InfoItem label="Release date" value={formatDate(loan.releaseDate)} />
-            <InfoItem label="Due date" value={formatDate(loan.dueDate)} />
-            <InfoItem label="Starting balance" value={formatPHP(loan.totalReceivable)} />
-            <InfoItem label="Daily payment" value={formatPHP(loan.dailyPayment)} />
-            <InfoItem label="Term of loan" value={`${loan.termDays} days`} />
-            <InfoItem label="Remaining balance" value={formatPHP(loan.currentBalance)} highlight />
+            <InfoItem label="Client"            value={ledger.client.name} />
+            <InfoItem label="Loan #"            value={ledger.loan.number} />
+            <InfoItem label="Release date"      value={formatDate(ledger.loan.release_date)} />
+            <InfoItem label="Due date"          value={formatDate(ledger.loan.due_date)} />
+            <InfoItem label="Starting balance"  value={formatPHP(ledger.loan.total_receivable)} />
+            <InfoItem label="Daily payment"     value={formatPHP(ledger.loan.daily_payment)} />
+            <InfoItem label="Term of loan"      value={`${ledger.loan.term_days} collection days`} />
+            <InfoItem label="Remaining balance" value={formatPHP(ledger.loan.current_balance)} highlight />
           </div>
 
+          {/* Ledger table */}
           <div className="rounded-2xl border bg-card shadow-sm">
             <div className="border-b px-5 py-4">
               <h3 className="font-display text-base font-semibold">Daily Payment Ledger</h3>
@@ -124,6 +196,7 @@ ${content}
                 <TableHeader>
                   <TableRow>
                     <TableHead>Day #</TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead className="text-right">Daily Due</TableHead>
                     <TableHead className="text-right">Amount Paid</TableHead>
                     <TableHead className="text-right">Running Balance</TableHead>
@@ -131,23 +204,28 @@ ${content}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ledgerRows.map((r) => (
-                    <TableRow key={r.day} className={r.status === "Pending" ? "opacity-50" : ""}>
-                      <TableCell className="num text-xs text-muted-foreground">{r.day}</TableCell>
-                      <TableCell className="text-right num">{formatPHP(r.due)}</TableCell>
+                  {ledger.schedule.map((r, i) => (
+                    <TableRow key={r.day} className={r.status === "pending" ? "opacity-50" : ""}>
+                      <TableCell className="num text-xs text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell className="text-sm">{formatDate(r.scheduled_date)}</TableCell>
+                      <TableCell className="text-right num">{formatPHP(r.expected)}</TableCell>
                       <TableCell className="text-right num font-medium">
-                        {r.paid > 0 ? <span className="text-success">{formatPHP(r.paid)}</span> : <span className="text-muted-foreground">—</span>}
+                        {r.actual > 0
+                          ? <span className="text-success">{formatPHP(r.actual)}</span>
+                          : <span className="text-muted-foreground">—</span>}
                       </TableCell>
-                      <TableCell className="text-right num">{formatPHP(r.balance)}</TableCell>
+                      <TableCell className="text-right num">{formatPHP(r.balance_after)}</TableCell>
                       <TableCell>
-                        <span className={`text-xs font-medium ${r.status === "Paid" ? "text-success" : "text-muted-foreground"}`}>{r.status}</span>
+                        <span className={`text-xs font-medium capitalize ${r.status === "paid" ? "text-success" : r.status === "partial" ? "text-amber-600" : "text-muted-foreground"}`}>
+                          {r.status}
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
                   <TableRow className="border-t-2 bg-muted/40 font-bold">
-                    <TableCell colSpan={2} className="text-sm font-semibold">Total</TableCell>
-                    <TableCell className="text-right num font-semibold text-success">{formatPHP(totalPaid)}</TableCell>
-                    <TableCell className="text-right num font-semibold">{formatPHP(loan.currentBalance)}</TableCell>
+                    <TableCell colSpan={3} className="text-sm font-semibold">Total</TableCell>
+                    <TableCell className="text-right num font-semibold text-success">{formatPHP(ledger.total_paid)}</TableCell>
+                    <TableCell className="text-right num font-semibold">{formatPHP(ledger.loan.current_balance)}</TableCell>
                     <TableCell />
                   </TableRow>
                 </TableBody>

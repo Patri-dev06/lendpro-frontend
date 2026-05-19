@@ -1,10 +1,16 @@
 import { useRef, useState } from "react";
-import { Upload, FileSpreadsheet } from "lucide-react";
+import { CheckCircle, Loader2, Upload, FileSpreadsheet, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRole } from "@/lib/role-context";
 import { toast } from "sonner";
 
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000/api";
+
 export function UploadExcelTab() {
-  const [file, setFile] = useState<File | null>(null);
+  const { token } = useRole();
+  const [file, setFile]       = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult]   = useState<{ imported: number; errors: string[] } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -16,12 +22,44 @@ export function UploadExcelTab() {
       return;
     }
     setFile(f);
-    toast.success(`"${f.name}" ready to import.`);
+    setResult(null);
   }
 
   function handleRemove() {
     setFile(null);
+    setResult(null);
     if (inputRef.current) inputRef.current.value = "";
+  }
+
+  async function handleImport() {
+    if (!file || !token) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+
+      const res = await fetch(`${API_URL}/payments/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        body: form,
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const msg = data?.message ?? (data?.errors ? Object.values(data.errors as Record<string, string[]>)[0]?.[0] : null) ?? "Upload failed.";
+        toast.error(msg);
+        return;
+      }
+
+      setResult(data);
+      toast.success(`${data.imported} payment${data.imported !== 1 ? "s" : ""} imported successfully.`);
+      handleRemove();
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -34,20 +72,21 @@ export function UploadExcelTab() {
           <div>
             <h3 className="font-display text-lg font-semibold">Upload Collection File</h3>
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
-              Upload the Excel file encoded by the accounting clerk to bulk-import the day's collections into the system.
+              Upload the CSV file with collected payments to bulk-import them into the system.
             </p>
           </div>
           <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFile} />
           <Button
             className="bg-primary text-primary-foreground hover:bg-primary-glow"
             onClick={() => inputRef.current?.click()}
+            disabled={uploading}
           >
             <Upload className="mr-2 h-4 w-4" />Choose file
           </Button>
           {file && (
             <div className="w-full max-w-sm rounded-xl border border-success/30 bg-success/5 px-4 py-3 text-left">
               <p className="font-medium text-success">{file.name}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB · ready to import</p>
             </div>
           )}
         </div>
@@ -55,20 +94,50 @@ export function UploadExcelTab() {
 
       {file && (
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handleRemove}>Remove file</Button>
+          <Button variant="outline" onClick={handleRemove} disabled={uploading}>Remove file</Button>
           <Button
             className="bg-primary text-primary-foreground hover:bg-primary-glow"
-            onClick={() => toast.success("Collection data imported successfully!")}
+            onClick={handleImport}
+            disabled={uploading}
           >
-            <Upload className="mr-2 h-4 w-4" />Import collections
+            {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+            {uploading ? "Importing…" : "Import collections"}
           </Button>
         </div>
       )}
 
+      {/* Import result */}
+      {result && (
+        <div className="space-y-3">
+          {result.imported > 0 && (
+            <div className="flex items-center gap-3 rounded-xl border border-success/30 bg-success/5 px-4 py-3">
+              <CheckCircle className="h-5 w-5 text-success shrink-0" />
+              <p className="text-sm font-medium text-success">{result.imported} payment{result.imported !== 1 ? "s" : ""} imported successfully.</p>
+            </div>
+          )}
+          {result.errors.length > 0 && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+              <div className="flex items-center gap-2 mb-2">
+                <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                <p className="text-sm font-medium text-destructive">{result.errors.length} row{result.errors.length !== 1 ? "s" : ""} had errors:</p>
+              </div>
+              <ul className="space-y-1">
+                {result.errors.map((e, i) => (
+                  <li key={i} className="text-xs text-destructive">{e}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="rounded-2xl border bg-muted/40 p-5 text-sm">
-        <p className="font-semibold text-foreground">Expected file format</p>
+        <p className="font-semibold text-foreground">Expected CSV format</p>
         <p className="mt-1 text-muted-foreground">
-          Use the Excel template provided by the accounting department. Accepted formats: <span className="font-medium text-foreground">.xlsx, .xls, .csv</span>
+          Columns: <span className="font-mono font-medium text-foreground">loan_number, payment_date, amount, remarks (optional)</span>
+        </p>
+        <p className="mt-1 text-muted-foreground">
+          Dates must be in <span className="font-medium text-foreground">YYYY-MM-DD</span> format. First row is treated as a header and skipped.
         </p>
       </div>
     </div>

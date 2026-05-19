@@ -1,44 +1,76 @@
-import { useMemo, useRef, useState } from "react";
-import { Printer } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Loader2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { loans, payments, collectors, clientById } from "@/lib/mock-data";
+import { apiRequest } from "@/lib/api";
+import { useRole } from "@/lib/role-context";
 import { formatPHP } from "@/lib/format";
+import { toast } from "sonner";
+
+interface SummaryRow {
+  loan_number: string;
+  client_name: string;
+  collectible: number;
+  balance: number;
+  payment: number;
+}
+
+interface SummaryResponse {
+  date: string;
+  rows: SummaryRow[];
+  totals: { collectible: number; balance: number; payment: number };
+}
+
+interface ApiCollector { id: number; name: string; }
 
 export function CollectorSummaryTab() {
+  const { token } = useRole();
   const today = new Date().toISOString().slice(0, 10);
-  const [date, setDate] = useState(today);
+
+  const [collectors, setCollectors] = useState<ApiCollector[]>([]);
+  const [date, setDate]             = useState(today);
   const [collectorFilter, setCollectorFilter] = useState("all");
+  const [summary, setSummary]       = useState<SummaryResponse | null>(null);
+  const [loading, setLoading]       = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
-  const rows = useMemo(() => {
-    return loans
-      .filter((l) => l.status !== "paid")
-      .filter((l) => collectorFilter === "all" || l.collectorId === collectorFilter)
-      .map((l) => {
-        const client = clientById(l.clientId);
-        const payment = payments
-          .filter((p) => p.clientId === l.clientId && p.date === date)
-          .reduce((s, p) => s + p.amount, 0);
-        return { loanNumber: l.number, clientName: client.name, collectible: l.dailyPayment, balance: l.currentBalance, payment };
-      });
-  }, [date, collectorFilter]);
+  const fetchCollectors = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await apiRequest<ApiCollector[]>("GET", "collectors", { token });
+      setCollectors(data);
+    } catch {
+      toast.error("Failed to load collectors.");
+    }
+  }, [token]);
 
-  const totals = useMemo(() => ({
-    collectible: rows.reduce((s, r) => s + r.collectible, 0),
-    balance: rows.reduce((s, r) => s + r.balance, 0),
-    payment: rows.reduce((s, r) => s + r.payment, 0),
-  }), [rows]);
+  const fetchSummary = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ date });
+      if (collectorFilter !== "all") params.set("collector_id", collectorFilter);
+      const data = await apiRequest<SummaryResponse>("GET", `payments/collector-summary?${params}`, { token });
+      setSummary(data);
+    } catch {
+      toast.error("Failed to load collector summary.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token, date, collectorFilter]);
+
+  useEffect(() => { fetchCollectors(); }, [fetchCollectors]);
+  useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
   function handlePrint() {
     const content = printRef.current?.innerHTML;
     if (!content) return;
     const collectorName = collectorFilter === "all"
       ? "All Collectors"
-      : collectors.find((c) => c.id === collectorFilter)?.name ?? "";
+      : collectors.find((c) => String(c.id) === collectorFilter)?.name ?? "";
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(`<html><head><title>Collector Summary — ${date}</title>
@@ -58,6 +90,9 @@ ${content}
     win.print();
   }
 
+  const rows = summary?.rows ?? [];
+  const totals = summary?.totals ?? { collectible: 0, balance: 0, payment: 0 };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
@@ -71,11 +106,13 @@ ${content}
             <SelectTrigger className="h-9 w-48"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Collectors</SelectItem>
-              {collectors.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              {collectors.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" className="ml-auto" onClick={handlePrint}>
+        <Button variant="outline" className="ml-auto" onClick={handlePrint} disabled={loading || rows.length === 0}>
           <Printer className="mr-2 h-4 w-4" />Print Summary
         </Button>
       </div>
@@ -85,11 +122,12 @@ ${content}
           <h3 className="font-display text-base font-semibold">Collector Summary</h3>
           <p className="text-xs text-muted-foreground">Daily collection report — {date}</p>
         </div>
+
         <div ref={printRef} className="overflow-x-auto">
           <Table className="min-w-150">
             <TableHeader>
               <TableRow>
-                <TableHead>Ct#</TableHead>
+                <TableHead>Loan #</TableHead>
                 <TableHead>Client Name</TableHead>
                 <TableHead className="text-right">Collectible for the Day</TableHead>
                 <TableHead className="text-right">Total Balance</TableHead>
@@ -97,28 +135,35 @@ ${content}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.loanNumber}>
-                  <TableCell className="num text-xs text-muted-foreground">{r.loanNumber}</TableCell>
-                  <TableCell className="font-medium">{r.clientName}</TableCell>
+              {loading ? (
+                <tr><td colSpan={5} className="py-10 text-center">
+                  <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+                </td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                  No active loans found for this date.
+                </td></tr>
+              ) : rows.map((r) => (
+                <TableRow key={r.loan_number}>
+                  <TableCell className="num text-xs text-muted-foreground">{r.loan_number}</TableCell>
+                  <TableCell className="font-medium">{r.client_name}</TableCell>
                   <TableCell className="text-right num">{formatPHP(r.collectible)}</TableCell>
                   <TableCell className="text-right num">{formatPHP(r.balance)}</TableCell>
                   <TableCell className="text-right num font-semibold">
-                    {r.payment > 0 ? formatPHP(r.payment) : <span className="font-normal text-muted-foreground">—</span>}
+                    {r.payment > 0
+                      ? formatPHP(r.payment)
+                      : <span className="font-normal text-muted-foreground">—</span>}
                   </TableCell>
                 </TableRow>
               ))}
-              {rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No active loans found.</TableCell>
+              {!loading && (
+                <TableRow className="border-t-2 bg-muted/40 font-bold">
+                  <TableCell colSpan={2} className="text-sm font-semibold">Total</TableCell>
+                  <TableCell className="text-right num font-semibold">{formatPHP(totals.collectible)}</TableCell>
+                  <TableCell className="text-right num font-semibold">{formatPHP(totals.balance)}</TableCell>
+                  <TableCell className="text-right num font-bold text-primary">{formatPHP(totals.payment)}</TableCell>
                 </TableRow>
               )}
-              <TableRow className="border-t-2 bg-muted/40 font-bold">
-                <TableCell colSpan={2} className="text-sm font-semibold">Total</TableCell>
-                <TableCell className="text-right num font-semibold">{formatPHP(totals.collectible)}</TableCell>
-                <TableCell className="text-right num font-semibold">{formatPHP(totals.balance)}</TableCell>
-                <TableCell className="text-right num font-bold text-primary">{formatPHP(totals.payment)}</TableCell>
-              </TableRow>
             </TableBody>
           </Table>
         </div>
