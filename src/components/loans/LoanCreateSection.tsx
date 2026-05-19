@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field } from "@/components/shared/Field";
 import { SumRow } from "@/components/shared/SumRow";
+import { SearchableCombobox } from "@/components/shared/SearchableCombobox";
+import { DateInput } from "@/components/shared/DateInput";
 import { formatPHP, formatDate, addNonSundayDays } from "@/lib/format";
 import { LOAN_TYPE_LABELS, type LoanType } from "@/lib/loan-constants";
 import { printTILA, printInvoice, printLoanForm } from "@/lib/loan-prints";
@@ -246,31 +248,31 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
 
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Select client" error={errors.client}>
-            <Select
+            <SearchableCombobox
+              options={clients.map((c) => ({
+                value: c.id.toString(),
+                label: c.name,
+                sub: c.store_name,
+              }))}
               value={clientId?.toString() ?? ""}
-              onValueChange={(v) => { setClientId(Number(v)); setErrors((e) => ({ ...e, client: "" })); }}
-            >
-              <SelectTrigger className={errors.client ? "border-destructive" : ""}><SelectValue placeholder="Choose client…" /></SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id.toString()}>{c.name} — {c.store_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => { setClientId(Number(v)); setErrors((e) => ({ ...e, client: "" })); }}
+              placeholder="Search by name or store…"
+              error={!!errors.client}
+            />
           </Field>
 
           <Field label="Assigned collector" error={errors.collector}>
-            <Select
+            <SearchableCombobox
+              options={collectors.map((c) => ({
+                value: c.id.toString(),
+                label: c.name,
+                sub: c.area,
+              }))}
               value={collectorId?.toString() ?? ""}
-              onValueChange={(v) => { setCollectorId(Number(v)); setErrors((e) => ({ ...e, collector: "" })); }}
-            >
-              <SelectTrigger className={errors.collector ? "border-destructive" : ""}><SelectValue placeholder="Choose collector…" /></SelectTrigger>
-              <SelectContent>
-                {collectors.map((c) => (
-                  <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => { setCollectorId(Number(v)); setErrors((e) => ({ ...e, collector: "" })); }}
+              placeholder="Search by name or area…"
+              error={!!errors.collector}
+            />
           </Field>
 
           <Field label="Principal loan (₱)" error={errors.principal}>
@@ -320,9 +322,9 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
           </Field>
 
           <Field label="Loan release date" error={errors.date}>
-            <Input
-              type="date" value={date}
-              className={errors.date ? "border-destructive" : ""}
+            <DateInput
+              value={date}
+              error={!!errors.date}
               onChange={(e) => { setDate(e.target.value); setErrors((err) => ({ ...err, date: "" })); }}
             />
           </Field>

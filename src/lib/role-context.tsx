@@ -29,7 +29,6 @@ interface RoleContextValue {
   role: Role;
   isAuthenticated: boolean;
   isLoading: boolean;
-  setRole: (r: Role) => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   register: (name: string, email: string, role: Role, password: string, passwordConfirmation: string) => Promise<void>;
@@ -43,23 +42,24 @@ const RoleCtx = createContext<RoleContextValue>({
   role: "admin",
   isAuthenticated: false,
   isLoading: false,
-  setRole: () => {},
   login: async () => {},
   logout: async () => {},
   register: async () => {},
 });
 
 export function RoleProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [role, setRoleState] = useState<Role>("admin");
+  const [user, setUser]   = useState<AuthUser | null>(null);
+  const [token, setToken]  = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Role is always derived from the authenticated user — never overridable client-side
+  const role: Role = user?.role ?? "admin";
 
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY);
     if (!stored) { setIsLoading(false); return; }
     apiRequest<AuthUser>("GET", "auth/me", { token: stored })
-      .then((u) => { setUser(u); setRoleState(u.role); setToken(stored); })
+      .then((u) => { setUser(u); setToken(stored); })
       .catch(() => { localStorage.removeItem(TOKEN_KEY); setToken(null); })
       .finally(() => setIsLoading(false));
   }, []);
@@ -71,7 +71,6 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(TOKEN_KEY, t);
     setToken(t);
     setUser(u);
-    setRoleState(u.role);
   }
 
   async function logout() {
@@ -81,7 +80,6 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
-    setRoleState("admin");
   }
 
   async function register(
@@ -91,26 +89,13 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     password: string,
     passwordConfirmation: string,
   ) {
-    // Registration returns 201 with pending:true — no token issued until admin approves
     await apiRequest<{ message: string; pending: boolean }>("POST", "auth/register", {
       body: { name, email, role: roleArg, password, password_confirmation: passwordConfirmation },
     });
   }
 
   return (
-    <RoleCtx.Provider
-      value={{
-        user,
-        token,
-        role,
-        isAuthenticated: !!user,
-        isLoading,
-        setRole: setRoleState,
-        login,
-        logout,
-        register,
-      }}
-    >
+    <RoleCtx.Provider value={{ user, token, role, isAuthenticated: !!user, isLoading, login, logout, register }}>
       {children}
     </RoleCtx.Provider>
   );
