@@ -23,7 +23,7 @@ function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
 
   return (
-    <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[1.1fr_1fr]">
+    <div className="grid h-screen grid-cols-1 overflow-hidden lg:grid-cols-[1.1fr_1fr]">
       {/* Left visual panel */}
       <div className="relative hidden overflow-hidden bg-primary text-primary-foreground lg:flex lg:flex-col lg:justify-between lg:p-12">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,oklch(0.50_0.18_260/0.5),transparent_55%),radial-gradient(circle_at_bottom_right,oklch(0.55_0.20_295/0.35),transparent_50%)]" />
@@ -69,9 +69,10 @@ function LoginPage() {
         </p>
       </div>
 
-      {/* Right form panel */}
-      <div className="flex flex-col justify-between bg-background p-6 sm:p-10">
-        <div className="flex justify-end lg:hidden">
+      {/* Right form panel — scrollable, never stretches */}
+      <div className="flex flex-col overflow-y-auto bg-background">
+        {/* Mobile brand header */}
+        <div className="flex shrink-0 justify-end px-6 pt-6 lg:hidden">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 font-bold text-white text-sm select-none">
               BM
@@ -85,15 +86,19 @@ function LoginPage() {
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-sm">
-          {mode === "login" ? (
-            <LoginForm onSwitch={() => setMode("register")} />
-          ) : (
-            <RegisterForm onSwitch={() => setMode("login")} />
-          )}
+        {/* Form — centered vertically with flex-1, scrolls naturally */}
+        <div className="flex flex-1 items-center justify-center px-6 py-10 sm:px-10">
+          <div className="w-full max-w-sm">
+            {mode === "login" ? (
+              <LoginForm onSwitch={() => setMode("register")} />
+            ) : (
+              <RegisterForm onSwitch={() => setMode("login")} />
+            )}
+          </div>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground">
+        {/* Footer — pinned at bottom of scroll area */}
+        <p className="shrink-0 px-6 pb-6 text-center text-xs text-muted-foreground">
           By continuing you agree to BuenaMano's{" "}
           <a href="#" className="underline">Terms</a> and{" "}
           <a href="#" className="underline">Privacy Policy</a>.
@@ -254,7 +259,14 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
       await register(name, email, role, password, confirm);
       navigate({ to: "/" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed.");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("already in use") || msg.toLowerCase().includes("already been taken")) {
+        setError("This email is already in use. Please use a different email address.");
+      } else if (msg.toLowerCase().includes("already exist") || msg.toLowerCase().includes("user already")) {
+        setError("A user with this information already exists in the system.");
+      } else {
+        setError(msg || "Registration failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
