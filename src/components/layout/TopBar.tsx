@@ -1,4 +1,4 @@
-import { Bell, Search, ChevronDown, LogOut, Settings } from "lucide-react";
+import { Search, ChevronDown, LogOut, Settings } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import {
   DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { ROLE_LABELS, useRole, type Role } from "@/lib/role-context";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { formatDate } from "@/lib/format";
 
 export function TopBar() {
@@ -56,10 +57,7 @@ export function TopBar() {
         </span>
 
         {/* Notifications */}
-        <button className="relative flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-destructive" />
-        </button>
+        <NotificationBell />
 
         <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
 

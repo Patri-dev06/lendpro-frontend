@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ShieldCheck, TrendingUp, LineChart, Banknote, Eye, EyeOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -257,6 +258,10 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
     setLoading(true);
     try {
       await register(name, email, role, password, confirm);
+      toast.success("Account created successfully!", {
+        description: `Welcome, ${firstName.trim()}! You are now signed in.`,
+        duration: 4000,
+      });
       navigate({ to: "/" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
