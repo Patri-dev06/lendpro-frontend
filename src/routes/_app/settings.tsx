@@ -1,56 +1,270 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
+import { Plus, X, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { PermissionGuard } from "@/components/shared/AccessRestricted";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { apiRequest } from "@/lib/api";
+import { useRole } from "@/lib/role-context";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — BuenaMano" }] }),
   component: SettingsPage,
 });
 
+interface ApiSetting {
+  key: string;
+  value: string | null;
+}
+
 function SettingsPage() {
+  const { token, role } = useRole();
+  const canEdit = role === "admin" || role === "sysadmin";
+
+  // Organisation
+  const [companyName, setCompanyName]     = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [companyPhone, setCompanyPhone]   = useState("");
+  const [companyEmail, setCompanyEmail]   = useState("");
+
+  // Loan defaults
+  const [interestRate, setInterestRate]     = useState("");
+  const [serviceCharge, setServiceCharge]   = useState("");
+  const [termOptions, setTermOptions]       = useState<number[]>([30, 45, 60]);
+  const [newTerm, setNewTerm]               = useState("");
+
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+
+  const fetchSettings = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await apiRequest<ApiSetting[]>("GET", "settings", { token });
+      const map = Object.fromEntries(data.map((s) => [s.key, s.value ?? ""]));
+      setCompanyName(map.company_name    ?? "");
+      setCompanyAddress(map.company_address ?? "");
+      setCompanyPhone(map.company_phone  ?? "");
+      setCompanyEmail(map.company_email  ?? "");
+      setInterestRate(map.default_interest_rate  ?? "20");
+      setServiceCharge(map.default_service_charge ?? "0");
+      try {
+        const parsed = JSON.parse(map.loan_term_options ?? "[30,45,60]");
+        if (Array.isArray(parsed)) setTermOptions(parsed.map(Number).filter(Boolean).sort((a, b) => a - b));
+      } catch {
+        setTermOptions([30, 45, 60]);
+      }
+    } catch {
+      toast.error("Failed to load settings.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+  function addTerm() {
+    const v = parseInt(newTerm, 10);
+    if (!v || v < 1 || v > 365) return;
+    if (termOptions.includes(v)) { setNewTerm(""); return; }
+    setTermOptions((prev) => [...prev, v].sort((a, b) => a - b));
+    setNewTerm("");
+  }
+
+  function removeTerm(t: number) {
+    if (termOptions.length <= 1) {
+      toast.error("At least one loan term option is required.");
+      return;
+    }
+    setTermOptions((prev) => prev.filter((x) => x !== t));
+  }
+
+  async function handleSave() {
+    if (!token) return;
+    const irNum = parseFloat(interestRate);
+    const scNum = parseFloat(serviceCharge);
+    if (isNaN(irNum) || irNum < 0 || irNum > 100) {
+      toast.error("Interest rate must be between 0 and 100.");
+      return;
+    }
+    if (isNaN(scNum) || scNum < 0) {
+      toast.error("Service charge must be 0 or greater.");
+      return;
+    }
+    if (termOptions.length === 0) {
+      toast.error("At least one loan term option is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiRequest("PATCH", "settings", {
+        token,
+        body: {
+          settings: [
+            { key: "company_name",            value: companyName },
+            { key: "company_address",          value: companyAddress },
+            { key: "company_phone",            value: companyPhone },
+            { key: "company_email",            value: companyEmail },
+            { key: "default_interest_rate",    value: String(irNum) },
+            { key: "default_service_charge",   value: String(scNum) },
+            { key: "loan_term_options",        value: JSON.stringify(termOptions) },
+          ],
+        },
+      });
+      toast.success("Settings saved.", { description: "All changes have been applied." });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save settings.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <PermissionGuard permission="settings:read">
+        <div className="flex h-60 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      </PermissionGuard>
+    );
+  }
+
   return (
     <PermissionGuard permission="settings:read">
     <div className="space-y-6">
       <PageHeader title="Settings" subtitle="Configure your BuenaMano workspace." />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+
+        {/* Organisation */}
         <div className="rounded-2xl border bg-card p-6 shadow-sm">
           <h3 className="font-display text-base font-semibold">Organization</h3>
-          <p className="text-xs text-muted-foreground">Basic company information.</p>
+          <p className="text-xs text-muted-foreground">Basic company information shown on reports and documents.</p>
           <div className="mt-5 space-y-3">
-            <Field label="Company name"><Input defaultValue="LendPro Finance Inc." /></Field>
-            <Field label="Default currency"><Input defaultValue="PHP — Philippine Peso" readOnly /></Field>
-            <Field label="Time zone"><Input defaultValue="Asia/Manila (GMT+8)" readOnly /></Field>
+            <Field label="Company name">
+              <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} disabled={!canEdit} placeholder="BuenaMano Lending Corporation" />
+            </Field>
+            <Field label="Address">
+              <Input value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} disabled={!canEdit} placeholder="123 Main St, City" />
+            </Field>
+            <Field label="Phone">
+              <Input value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} disabled={!canEdit} placeholder="+63 912 345 6789" />
+            </Field>
+            <Field label="Email">
+              <Input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} disabled={!canEdit} placeholder="info@buenamano.ph" />
+            </Field>
+            <Field label="Currency"><Input value="PHP — Philippine Peso" readOnly className="bg-muted/40 text-muted-foreground" /></Field>
+            <Field label="Time zone"><Input value="Asia/Manila (GMT+8)" readOnly className="bg-muted/40 text-muted-foreground" /></Field>
           </div>
         </div>
-        <div className="rounded-2xl border bg-card p-6 shadow-sm">
-          <h3 className="font-display text-base font-semibold">Operational rules</h3>
-          <p className="text-xs text-muted-foreground">How collection thresholds are computed.</p>
-          <div className="mt-5 space-y-4">
-            <Toggle label="Auto-flag overdue at +3 days" defaultChecked />
-            <Toggle label="Auto-flag past due at +30 days" defaultChecked />
-            <Toggle label="Allow partial payments" defaultChecked />
-            <Toggle label="Require remarks on missed collections" />
+
+        {/* Loan defaults */}
+        <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-5">
+          <div>
+            <h3 className="font-display text-base font-semibold">Loan defaults</h3>
+            <p className="text-xs text-muted-foreground">These values pre-fill the loan creation form. Staff can still override them per loan.</p>
+          </div>
+
+          <Field label="Default interest rate (% of principal)">
+            <div className="relative">
+              <Input
+                type="number" min={0} max={100} step={0.01}
+                value={interestRate}
+                onChange={(e) => setInterestRate(e.target.value)}
+                disabled={!canEdit}
+                className="pr-8"
+                placeholder="20"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              e.g. 20% on a ₱10,000 principal = ₱2,000 interest auto-filled.
+            </p>
+          </Field>
+
+          <Field label="Default service / processing fee (₱)">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₱</span>
+              <Input
+                type="number" min={0} step={1}
+                value={serviceCharge}
+                onChange={(e) => setServiceCharge(e.target.value)}
+                disabled={!canEdit}
+                className="pl-7"
+                placeholder="0"
+              />
+            </div>
+          </Field>
+
+          <div className="space-y-2">
+            <Label className="text-xs">Available loan term options (collection days)</Label>
+            <div className="flex flex-wrap gap-2">
+              {termOptions.map((t) => (
+                <span
+                  key={t}
+                  className="flex items-center gap-1 rounded-full border bg-secondary/60 px-3 py-1 text-xs font-medium"
+                >
+                  {t} days
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => removeTerm(t)}
+                      className="ml-0.5 rounded-full hover:text-destructive"
+                      title="Remove"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+            {canEdit && (
+              <div className="flex gap-2 pt-1">
+                <Input
+                  type="number" min={1} max={365}
+                  value={newTerm}
+                  onChange={(e) => setNewTerm(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTerm(); } }}
+                  placeholder="e.g. 75"
+                  className="h-8 w-28 text-sm"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={addTerm} className="h-8">
+                  <Plus className="mr-1 h-3.5 w-3.5" />Add term
+                </Button>
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Sundays are always excluded from collection days automatically.
+            </p>
           </div>
         </div>
+
       </div>
-      <div className="flex justify-end"><Button className="bg-primary text-primary-foreground hover:bg-primary-glow">Save changes</Button></div>
+
+      {canEdit && (
+        <div className="flex justify-end">
+          <Button
+            className="bg-primary text-primary-foreground hover:bg-primary-glow"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      )}
     </div>
     </PermissionGuard>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="space-y-1.5"><Label className="text-xs">{label}</Label>{children}</div>;
-}
-function Toggle({ label, defaultChecked }: { label: string; defaultChecked?: boolean }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2.5">
-      <span className="text-sm">{label}</span>
-      <Switch defaultChecked={defaultChecked} />
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      {children}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Field } from "@/components/shared/Field";
 import { SumRow } from "@/components/shared/SumRow";
 import { formatPHP, formatDate, addNonSundayDays } from "@/lib/format";
-import { LOAN_TYPE_LABELS, TERM_OPTIONS, type LoanType } from "@/lib/loan-constants";
+import { LOAN_TYPE_LABELS, type LoanType } from "@/lib/loan-constants";
 import { printTILA, printInvoice, printLoanForm } from "@/lib/loan-prints";
 import { apiRequest } from "@/lib/api";
 import { toast } from "sonner";
@@ -58,10 +58,16 @@ interface Props {
   onLoanCreated: (loan: ApiLoan) => void;
 }
 
+interface ApiSetting { key: string; value: string | null; }
+
 export function LoanCreateSection({ token, onLoanCreated }: Props) {
   const [clients, setClients]     = useState<ApiClient[]>([]);
   const [collectors, setCollectors] = useState<ApiCollector[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Settings-driven defaults
+  const [defaultInterestRate, setDefaultInterestRate] = useState(0);
+  const [termOptions, setTermOptions] = useState<number[]>([30, 45, 60]);
 
   const [loanType, setLoanType]   = useState<LoanType>("new-loan");
   const [clientId, setClientId]   = useState<number | null>(null);
@@ -79,10 +85,34 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
   const fetchDropdowns = useCallback(async () => {
     if (!token) return;
     try {
-      const [cls, cols] = await Promise.all([
+      const [cls, cols, settingsRaw] = await Promise.all([
         apiRequest<ApiClient[]>("GET", "clients", { token }),
         apiRequest<ApiCollector[]>("GET", "collectors", { token }),
+        apiRequest<ApiSetting[]>("GET", "settings", { token }),
       ]);
+
+      // Parse settings
+      const smap = Object.fromEntries(settingsRaw.map((s) => [s.key, s.value ?? ""]));
+      const rate = parseFloat(smap.default_interest_rate ?? "0") || 0;
+      const defSc = parseFloat(smap.default_service_charge ?? "0") || 0;
+      let terms: number[] = [30, 45, 60];
+      try {
+        const parsed = JSON.parse(smap.loan_term_options ?? "[30,45,60]");
+        if (Array.isArray(parsed) && parsed.length > 0) terms = parsed.map(Number).sort((a, b) => a - b);
+      } catch { /* keep default */ }
+
+      setDefaultInterestRate(rate);
+      setTermOptions(terms);
+      setSc(defSc);
+
+      const defaultTerm = terms.includes(45) ? 45 : terms[0];
+      setTermDays(defaultTerm);
+
+      // Pre-fill interest from rate × principal
+      const defaultInterest = rate > 0 ? Math.round(10000 * rate / 100) : 0;
+      setInterest(defaultInterest);
+      recalcDailyRaw(10000, defaultInterest, defSc, defaultTerm);
+
       setClients(cls);
       setCollectors(cols);
       if (cls.length > 0)  setClientId(cls[0].id);
@@ -100,9 +130,22 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
   const totalReceivable = totalLoanAmount + sc;
   const dueDate = date ? addNonSundayDays(date, termDays) : null;
 
-  function recalcDaily(p: number, i: number, s: number, t: number) {
+  function recalcDailyRaw(p: number, i: number, s: number, t: number) {
     const tr = p + i + s;
     if (t > 0 && tr > 0) setDaily(Math.ceil(tr / t));
+  }
+
+  function recalcDaily(p: number, i: number, s: number, t: number) {
+    recalcDailyRaw(p, i, s, t);
+  }
+
+  function handlePrincipalChange(p: number) {
+    setPrincipal(p);
+    // Re-apply interest rate if it's still the auto-computed value
+    const autoInterest = defaultInterestRate > 0 ? Math.round(p * defaultInterestRate / 100) : interest;
+    setInterest(autoInterest);
+    recalcDaily(p, autoInterest, sc, termDays);
+    setErrors((e) => ({ ...e, principal: "" }));
   }
 
   function handleTermChange(t: number) {
@@ -146,9 +189,16 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
         description: `${loan.number} — ${termDays}-day schedule generated.`,
       });
       onLoanCreated(loan);
-      // Reset form
-      setPrincipal(10000); setInterest(0); setSc(0); setTermDays(45);
-      setDaily(0); setRemarks(""); setErrors({});
+      // Reset form — restore setting-based defaults
+      const resetPrincipal = 10000;
+      const resetInterest  = defaultInterestRate > 0 ? Math.round(resetPrincipal * defaultInterestRate / 100) : 0;
+      const resetSc        = parseFloat(String(sc)) || 0;
+      const resetTerm      = termOptions.includes(45) ? 45 : termOptions[0];
+      setPrincipal(resetPrincipal);
+      setInterest(resetInterest);
+      setTermDays(resetTerm);
+      recalcDailyRaw(resetPrincipal, resetInterest, resetSc, resetTerm);
+      setRemarks(""); setErrors({});
       setDate(new Date().toISOString().slice(0, 10));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create loan.");
@@ -227,16 +277,14 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
             <Input
               type="number" min={0} value={principal}
               className={errors.principal ? "border-destructive" : ""}
-              onChange={(e) => {
-                const v = Number(e.target.value) || 0;
-                setPrincipal(v);
-                recalcDaily(v, interest, sc, termDays);
-                setErrors((err) => ({ ...err, principal: "" }));
-              }}
+              onChange={(e) => handlePrincipalChange(Number(e.target.value) || 0)}
             />
           </Field>
 
-          <Field label="Interest (₱)" error={errors.interest}>
+          <Field
+            label={`Interest (₱)${defaultInterestRate > 0 ? ` — ${defaultInterestRate}% default` : ""}`}
+            error={errors.interest}
+          >
             <Input
               type="number" min={0} value={interest}
               className={errors.interest ? "border-destructive" : ""}
@@ -253,7 +301,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
             <Select value={String(termDays)} onValueChange={(v) => handleTermChange(Number(v))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {TERM_OPTIONS.map((t) => <SelectItem key={t} value={String(t)}>{t} collection days (Mon–Sat)</SelectItem>)}
+                {termOptions.map((t) => <SelectItem key={t} value={String(t)}>{t} collection days (Mon–Sat)</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
