@@ -253,7 +253,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
             <Select value={String(termDays)} onValueChange={(v) => handleTermChange(Number(v))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {TERM_OPTIONS.map((t) => <SelectItem key={t} value={String(t)}>{t} days</SelectItem>)}
+                {TERM_OPTIONS.map((t) => <SelectItem key={t} value={String(t)}>{t} collection days (Mon–Sat)</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
@@ -332,7 +332,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
           <SumRow label="Starting balance" value={formatPHP(totalReceivable)} bold />
           <div className="my-2 border-t border-primary-foreground/20" />
           <SumRow label="Daily payment" value={formatPHP(daily)} />
-          <SumRow label="Term of loan" value={`${termDays} days`} />
+          <SumRow label="Term of loan" value={`${termDays} collection days`} />
           <SumRow label="Due date" value={dueDate ? formatDate(dueDate) : "—"} />
         </dl>
         <p className="mt-5 text-[11px] opacity-70">

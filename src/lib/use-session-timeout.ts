@@ -22,9 +22,9 @@ export function useSessionTimeout({
 
   // Refs so activity handler never has stale closures
   const showWarningRef  = useRef(false);
-  const warnTimerRef    = useRef<ReturnType<typeof setTimeout>>();
-  const expireTimerRef  = useRef<ReturnType<typeof setTimeout>>();
-  const countdownRef    = useRef<ReturnType<typeof setInterval>>();
+  const warnTimerRef    = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const expireTimerRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const countdownRef    = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const onTimeoutRef    = useRef(onTimeout);
   onTimeoutRef.current  = onTimeout;
 

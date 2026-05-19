@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ShieldCheck, TrendingUp, LineChart, Banknote, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ShieldCheck, TrendingUp, LineChart, Banknote, Eye, EyeOff, Loader2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -231,7 +231,6 @@ function PasswordStrength({ password }: { password: string }) {
 
 /* ---------- REGISTER FORM ---------- */
 function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
-  const navigate = useNavigate();
   const { register } = useRole();
   const [firstName, setFirstName] = useState("");
   const [middleInitial, setMiddleInitial] = useState("");
@@ -244,6 +243,7 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
 
   const pwValid   = PW_RULES.every((r) => r.test(password));
   const mismatch  = confirm.length > 0 && password !== confirm;
@@ -258,11 +258,7 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
     setLoading(true);
     try {
       await register(name, email, role, password, confirm);
-      toast.success("Account created successfully!", {
-        description: `Welcome, ${firstName.trim()}! You are now signed in.`,
-        duration: 4000,
-      });
-      navigate({ to: "/" });
+      setSubmitted(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.toLowerCase().includes("already in use") || msg.toLowerCase().includes("already been taken")) {
@@ -275,6 +271,30 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (submitted) {
+    return (
+      <div className="text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+          <Clock className="h-8 w-8 text-amber-600" />
+        </div>
+        <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">Registration submitted</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your account request has been sent to the administrator for review. You will be able to sign in once your account is approved.
+        </p>
+        <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-xs text-amber-800">
+          <p className="font-medium">What happens next?</p>
+          <p className="mt-1">An admin will review your registration and approve or reject your account. Contact your system administrator if you need urgent access.</p>
+        </div>
+        <button
+          onClick={onSwitch}
+          className="mt-6 text-sm font-medium text-primary hover:underline"
+        >
+          Back to sign in
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -361,7 +381,7 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
         <Button type="submit" disabled={!canSubmit}
           className="h-11 w-full bg-primary text-primary-foreground hover:bg-primary-glow disabled:opacity-50">
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {loading ? "Creating account…" : "Create account"}
+          {loading ? "Submitting…" : "Submit registration"}
         </Button>
       </form>
 

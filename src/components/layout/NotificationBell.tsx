@@ -83,7 +83,7 @@ export function NotificationBell() {
     if (!token || unread === 0) return;
     setLoading(true);
     try {
-      await apiRequest("notifications/mark-read", { method: "POST", token });
+      await apiRequest("POST", "notifications/mark-read", { token });
       setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnread(0);
     } finally {

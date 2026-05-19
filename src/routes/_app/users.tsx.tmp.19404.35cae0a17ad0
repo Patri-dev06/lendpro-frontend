@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Loader2, Eye, EyeOff, Search, CheckCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, EyeOff, Search, CheckCircle, Clock } from "lucide-react";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,6 @@ interface SystemUser {
   name: string;
   email: string;
   role: Role;
-  is_approved: boolean;
   created_at: string;
 }
 
@@ -46,7 +45,6 @@ function UsersPage() {
   const [editTarget, setEditTarget] = useState<SystemUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SystemUser | null>(null);
   const [deleting, setDeleting]     = useState(false);
-  const [approvingId, setApprovingId] = useState<number | null>(null);
 
   const fetchUsers = useCallback(async () => {
     if (!token) return;
@@ -61,20 +59,6 @@ function UsersPage() {
   }, [token]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
-
-  async function handleApprove(u: SystemUser) {
-    if (!token) return;
-    setApprovingId(u.id);
-    try {
-      const updated = await apiRequest<SystemUser>("PATCH", `users/${u.id}/approve`, { token });
-      setUsers((prev) => prev.map((x) => x.id === updated.id ? updated : x));
-      toast.success(`${u.name}'s account has been approved.`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to approve user.");
-    } finally {
-      setApprovingId(null);
-    }
-  }
 
   async function handleDelete() {
     if (!deleteTarget || !token) return;
@@ -91,8 +75,6 @@ function UsersPage() {
     }
   }
 
-  const pendingCount = users.filter((u) => !u.is_approved).length;
-
   const filtered = users.filter((u) =>
     !q ||
     u.name.toLowerCase().includes(q.toLowerCase()) ||
@@ -105,7 +87,7 @@ function UsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="User management"
-        subtitle={pendingCount > 0 ? `${pendingCount} account${pendingCount > 1 ? "s" : ""} pending approval` : "Manage system users, roles, and access."}
+        subtitle="Manage system users, roles, and access."
         actions={
           <Button className="bg-primary text-primary-foreground hover:bg-primary-glow" onClick={() => setAddOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" />Add user
@@ -126,20 +108,19 @@ function UsersPage() {
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead>Created</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <tr><td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">Loading users…</td></tr>
+              <tr><td colSpan={5} className="py-12 text-center text-sm text-muted-foreground">Loading users…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
+              <tr><td colSpan={5} className="py-12 text-center text-sm text-muted-foreground">
                 {users.length === 0 ? "No users found." : "No users match your search."}
               </td></tr>
             ) : filtered.map((u) => (
-              <TableRow key={u.id} className={!u.is_approved ? "bg-amber-50/50" : undefined}>
+              <TableRow key={u.id}>
                 <TableCell className="font-medium">
                   {u.name}
                   {u.id === currentUser?.id && (
@@ -152,30 +133,9 @@ function UsersPage() {
                     {ROLE_LABELS[u.role] ?? u.role}
                   </span>
                 </TableCell>
-                <TableCell>
-                  {u.is_approved ? (
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Active</span>
-                  ) : (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">Pending approval</span>
-                  )}
-                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{formatDate(u.created_at)}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
-                    {!u.is_approved && (
-                      <Button
-                        size="sm" variant="ghost"
-                        className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
-                        disabled={approvingId === u.id}
-                        onClick={() => handleApprove(u)}
-                        title="Approve account"
-                      >
-                        {approvingId === u.id
-                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          : <CheckCircle className="h-3.5 w-3.5" />}
-                        <span className="ml-1">Approve</span>
-                      </Button>
-                    )}
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditTarget(u)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -295,7 +255,7 @@ function UserFormDialog({ open, onOpenChange, token, user, onSaved }: UserFormPr
         : await apiRequest<SystemUser>("POST", "users", { token, body });
 
       toast.success(editing ? "User updated." : "User created.", {
-        description: editing ? `${saved.name}'s profile has been updated.` : `${saved.name} has been added and can now sign in.`,
+        description: editing ? `${saved.name}'s profile has been updated.` : `${saved.name} can now sign in.`,
       });
       onSaved(saved);
     } catch (err) {

@@ -91,13 +91,10 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     password: string,
     passwordConfirmation: string,
   ) {
-    const { user: u, token: t } = await apiRequest<AuthResponse>("POST", "auth/register", {
+    // Registration returns 201 with pending:true — no token issued until admin approves
+    await apiRequest<{ message: string; pending: boolean }>("POST", "auth/register", {
       body: { name, email, role: roleArg, password, password_confirmation: passwordConfirmation },
     });
-    localStorage.setItem(TOKEN_KEY, t);
-    setToken(t);
-    setUser(u);
-    setRoleState(u.role);
   }
 
   return (
