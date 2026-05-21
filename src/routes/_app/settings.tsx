@@ -31,9 +31,9 @@ function SettingsPage() {
   const [companyEmail, setCompanyEmail]   = useState("");
 
   // Loan defaults
-  const [interestRate, setInterestRate]     = useState("");
-  const [serviceCharge, setServiceCharge]   = useState("");
-  const [termOptions, setTermOptions]       = useState<number[]>([30, 45, 60]);
+  const [interestRate, setInterestRate]         = useState("");
+  const [serviceChargeRate, setServiceChargeRate] = useState("");
+  const [termOptions, setTermOptions]           = useState<number[]>([30, 45, 60]);
   const [newTerm, setNewTerm]               = useState("");
 
   const [loading, setLoading]   = useState(true);
@@ -48,8 +48,8 @@ function SettingsPage() {
       setCompanyAddress(map.company_address ?? "");
       setCompanyPhone(map.company_phone  ?? "");
       setCompanyEmail(map.company_email  ?? "");
-      setInterestRate(map.default_interest_rate  ?? "20");
-      setServiceCharge(map.default_service_charge ?? "0");
+      setInterestRate(map.default_interest_rate ?? "20");
+      setServiceChargeRate(map.service_charge_rate ?? "5");
       try {
         const parsed = JSON.parse(map.loan_term_options ?? "[30,45,60]");
         if (Array.isArray(parsed)) setTermOptions(parsed.map(Number).filter(Boolean).sort((a, b) => a - b));
@@ -83,14 +83,14 @@ function SettingsPage() {
 
   async function handleSave() {
     if (!token) return;
-    const irNum = parseFloat(interestRate);
-    const scNum = parseFloat(serviceCharge);
+    const irNum  = parseFloat(interestRate);
+    const scrNum = parseFloat(serviceChargeRate);
     if (isNaN(irNum) || irNum < 0 || irNum > 100) {
       toast.error("Interest rate must be between 0 and 100.");
       return;
     }
-    if (isNaN(scNum) || scNum < 0) {
-      toast.error("Service charge must be 0 or greater.");
+    if (isNaN(scrNum) || scrNum < 0 || scrNum > 100) {
+      toast.error("Processing fee rate must be between 0 and 100.");
       return;
     }
     if (termOptions.length === 0) {
@@ -107,8 +107,8 @@ function SettingsPage() {
             { key: "company_address",          value: companyAddress },
             { key: "company_phone",            value: companyPhone },
             { key: "company_email",            value: companyEmail },
-            { key: "default_interest_rate",    value: String(irNum) },
-            { key: "default_service_charge",   value: String(scNum) },
+            { key: "default_interest_rate", value: String(irNum) },
+            { key: "service_charge_rate",   value: String(scrNum) },
             { key: "loan_term_options",        value: JSON.stringify(termOptions) },
           ],
         },
@@ -184,18 +184,21 @@ function SettingsPage() {
             </p>
           </Field>
 
-          <Field label="Default service / processing fee (₱)">
+          <Field label="Processing fee rate (% of principal)">
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₱</span>
               <Input
-                type="number" min={0} step={1}
-                value={serviceCharge}
-                onChange={(e) => setServiceCharge(e.target.value)}
+                type="number" min={0} max={100} step={0.01}
+                value={serviceChargeRate}
+                onChange={(e) => setServiceChargeRate(e.target.value)}
                 disabled={!canEdit}
-                className="pl-7"
-                placeholder="0"
+                className="pr-8"
+                placeholder="5"
               />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
             </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              e.g. 5% on a ₱10,000 principal = ₱500 processing fee (collected upfront in cash).
+            </p>
           </Field>
 
           <div className="space-y-2">

@@ -153,7 +153,7 @@ export function ManagerDashboard() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Collector actual vs expected" subtitle="Performance ratio today">
+        <ChartCard title="Actual Collection vs Expected" subtitle="Performance ratio today">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart layout="vertical" data={collectorChartData}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" horizontal={false} />

@@ -24,6 +24,8 @@ interface ApiClient {
   email: string | null;
   type: string;
   status: string;
+  collector_id?: number;
+  collector?: { id: number; name: string; code: string; area: string };
 }
 
 interface ApiCollector {
@@ -58,17 +60,19 @@ export interface ApiLoan {
 interface Props {
   token: string | null;
   onLoanCreated: (loan: ApiLoan) => void;
+  initialClientId?: number;
 }
 
 interface ApiSetting { key: string; value: string | null; }
 
-export function LoanCreateSection({ token, onLoanCreated }: Props) {
+export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Props) {
   const [clients, setClients]     = useState<ApiClient[]>([]);
   const [collectors, setCollectors] = useState<ApiCollector[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Settings-driven defaults
   const [defaultInterestRate, setDefaultInterestRate] = useState(0);
+  const [scRate, setScRate] = useState(5);
   const [termOptions, setTermOptions] = useState<number[]>([30, 45, 60]);
 
   const [loanType, setLoanType]   = useState<LoanType>("new-loan");
@@ -95,8 +99,8 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
 
       // Parse settings
       const smap = Object.fromEntries(settingsRaw.map((s) => [s.key, s.value ?? ""]));
-      const rate = parseFloat(smap.default_interest_rate ?? "0") || 0;
-      const defSc = parseFloat(smap.default_service_charge ?? "0") || 0;
+      const rate    = parseFloat(smap.default_interest_rate  ?? "0") || 0;
+      const scRateV = parseFloat(smap.service_charge_rate    ?? "5") || 5;
       let terms: number[] = [30, 45, 60];
       try {
         const parsed = JSON.parse(smap.loan_term_options ?? "[30,45,60]");
@@ -104,16 +108,18 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
       } catch { /* keep default */ }
 
       setDefaultInterestRate(rate);
+      setScRate(scRateV);
       setTermOptions(terms);
-      setSc(defSc);
 
-      const defaultTerm = terms.includes(45) ? 45 : terms[0];
+      const defaultTerm     = terms.includes(45) ? 45 : terms[0];
+      const defaultPrincipal = 10000;
+      const defaultInterest  = rate > 0 ? Math.round(defaultPrincipal * rate / 100) : 0;
+      const defaultSc        = Math.round(defaultPrincipal * scRateV / 100);
+
       setTermDays(defaultTerm);
-
-      // Pre-fill interest from rate × principal
-      const defaultInterest = rate > 0 ? Math.round(10000 * rate / 100) : 0;
       setInterest(defaultInterest);
-      recalcDailyRaw(10000, defaultInterest, defSc, defaultTerm);
+      setSc(defaultSc);
+      recalcDailyRaw(defaultPrincipal, defaultInterest, defaultSc, defaultTerm);
 
       setClients(cls);
       setCollectors(cols);
@@ -128,12 +134,19 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
 
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
 
+  useEffect(() => {
+    if (initialClientId && clients.some((c) => c.id === initialClientId)) {
+      setClientId(initialClientId);
+    }
+  }, [initialClientId, clients]);
+
   const totalLoanAmount = principal + interest;
-  const totalReceivable = totalLoanAmount + sc;
+  // sc is collected upfront in cash — not part of the repayment schedule
+  const totalReceivable = totalLoanAmount;
   const dueDate = date ? addNonSundayDays(date, termDays) : null;
 
-  function recalcDailyRaw(p: number, i: number, s: number, t: number) {
-    const tr = p + i + s;
+  function recalcDailyRaw(p: number, i: number, _s: number, t: number) {
+    const tr = p + i;
     if (t > 0 && tr > 0) setDaily(Math.ceil(tr / t));
   }
 
@@ -141,12 +154,21 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
     recalcDailyRaw(p, i, s, t);
   }
 
+  function handleClientChange(v: string) {
+    const id = Number(v);
+    setClientId(id);
+    const client = clients.find((c) => c.id === id);
+    if (client?.collector_id) setCollectorId(client.collector_id);
+    setErrors((e) => ({ ...e, client: "", collector: "" }));
+  }
+
   function handlePrincipalChange(p: number) {
     setPrincipal(p);
-    // Re-apply interest rate if it's still the auto-computed value
     const autoInterest = defaultInterestRate > 0 ? Math.round(p * defaultInterestRate / 100) : interest;
+    const autoSc       = Math.round(p * scRate / 100);
     setInterest(autoInterest);
-    recalcDaily(p, autoInterest, sc, termDays);
+    setSc(autoSc);
+    recalcDaily(p, autoInterest, autoSc, termDays);
     setErrors((e) => ({ ...e, principal: "" }));
   }
 
@@ -161,7 +183,6 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
     if (!collectorId)      e.collector = "Select a collector.";
     if (principal <= 0)    e.principal = "Principal must be greater than 0.";
     if (interest < 0)      e.interest  = "Interest cannot be negative.";
-    if (sc < 0)            e.sc        = "Processing fee cannot be negative.";
     if (daily <= 0)        e.daily     = "Daily payment must be greater than 0.";
     if (!date)             e.date      = "Release date is required.";
     setErrors(e);
@@ -194,10 +215,11 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
       // Reset form — restore setting-based defaults
       const resetPrincipal = 10000;
       const resetInterest  = defaultInterestRate > 0 ? Math.round(resetPrincipal * defaultInterestRate / 100) : 0;
-      const resetSc        = parseFloat(String(sc)) || 0;
+      const resetSc        = Math.round(resetPrincipal * scRate / 100);
       const resetTerm      = termOptions.includes(45) ? 45 : termOptions[0];
       setPrincipal(resetPrincipal);
       setInterest(resetInterest);
+      setSc(resetSc);
       setTermDays(resetTerm);
       recalcDailyRaw(resetPrincipal, resetInterest, resetSc, resetTerm);
       setRemarks(""); setErrors({});
@@ -252,10 +274,10 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
               options={clients.map((c) => ({
                 value: c.id.toString(),
                 label: c.name,
-                sub: c.store_name,
+                sub: c.collector ? `${c.store_name} · ${c.collector.name}` : c.store_name,
               }))}
               value={clientId?.toString() ?? ""}
-              onChange={(v) => { setClientId(Number(v)); setErrors((e) => ({ ...e, client: "" })); }}
+              onChange={handleClientChange}
               placeholder="Search by name or store…"
               error={!!errors.client}
             />
@@ -308,17 +330,8 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
             </Select>
           </Field>
 
-          <Field label="Processing fee (₱)" error={errors.sc}>
-            <Input
-              type="number" min={0} value={sc}
-              className={errors.sc ? "border-destructive" : ""}
-              onChange={(e) => {
-                const v = Number(e.target.value) || 0;
-                setSc(v);
-                recalcDaily(principal, interest, v, termDays);
-                setErrors((err) => ({ ...err, sc: "" }));
-              }}
-            />
+          <Field label={`Processing fee (₱) — ${scRate}% of principal`}>
+            <Input value={formatPHP(sc)} readOnly className="bg-muted/40 text-muted-foreground" />
           </Field>
 
           <Field label="Loan release date" error={errors.date}>
@@ -374,19 +387,18 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
         <p className="text-xs opacity-75">Live calculation based on inputs</p>
         <dl className="mt-5 space-y-3 text-sm">
           <SumRow label="Principal" value={formatPHP(principal)} />
-          <SumRow label="Interest" value={formatPHP(interest)} />
-          <div className="my-2 border-t border-primary-foreground/20" />
-          <SumRow label="Total loan amount" value={formatPHP(totalLoanAmount)} bold />
-          <SumRow label="Processing fee" value={formatPHP(sc)} />
+          <SumRow label="Interest (add-on)" value={formatPHP(interest)} />
           <div className="my-2 border-t border-primary-foreground/20" />
           <SumRow label="Starting balance" value={formatPHP(totalReceivable)} bold />
+          <div className="my-2 border-t border-primary-foreground/20" />
+          <SumRow label="Processing fee (upfront cash)" value={formatPHP(sc)} />
           <div className="my-2 border-t border-primary-foreground/20" />
           <SumRow label="Daily payment" value={formatPHP(daily)} />
           <SumRow label="Term of loan" value={`${termDays} collection days`} />
           <SumRow label="Due date" value={dueDate ? formatDate(dueDate) : "—"} />
         </dl>
         <p className="mt-5 text-[11px] opacity-70">
-          Total Loan Amount = Principal + Interest. Starting Balance = Total + Processing Fee. Sundays not counted in term.
+          Starting balance = Principal + Interest. Processing fee is collected upfront in cash — not part of daily payments. Sundays excluded from term.
         </p>
       </div>
     </div>
