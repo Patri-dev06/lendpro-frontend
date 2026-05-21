@@ -70,6 +70,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
   // Settings-driven defaults
   const [defaultInterestRate, setDefaultInterestRate] = useState(0);
   const [termOptions, setTermOptions] = useState<number[]>([30, 45, 60]);
+  const [holidays, setHolidays] = useState<string[]>([]);
 
   const [loanType, setLoanType]   = useState<LoanType>("new-loan");
   const [clientId, setClientId]   = useState<number | null>(null);
@@ -104,8 +105,15 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
         if (Array.isArray(parsed) && parsed.length > 0) terms = parsed.map(Number).sort((a, b) => a - b);
       } catch { /* keep default */ }
 
+      let parsedHolidays: string[] = [];
+      try {
+        const h = JSON.parse(smap.holidays ?? "[]");
+        if (Array.isArray(h)) parsedHolidays = h.map((x: { date?: string } | string) => (typeof x === "string" ? x : x.date ?? "")).filter(Boolean);
+      } catch { /* keep empty */ }
+
       setDefaultInterestRate(rate);
       setTermOptions(terms);
+      setHolidays(parsedHolidays);
       setSc(defSc);
 
       const defaultTerm = terms.includes(45) ? 45 : terms[0];
@@ -131,7 +139,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
 
   const totalLoanAmount = principal + interest;
   const totalReceivable = totalLoanAmount + sc;
-  const dueDate = date ? addNonSundayDays(date, termDays) : null;
+  const dueDate = date ? addNonSundayDays(date, termDays, holidays) : null;
 
   function getTermInterestRate(t: number): number {
     if (t === 30) return 5;
@@ -410,11 +418,10 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
           <SumRow label="Starting balance" value={formatPHP(totalReceivable)} bold />
           <div className="my-2 border-t border-primary-foreground/20" />
           <SumRow label="Daily payment" value={formatPHP(daily)} />
-          <SumRow label="Term of loan" value={`${termDays} collection days`} />
           <SumRow label="Due date" value={dueDate ? formatDate(dueDate) : "—"} />
         </dl>
         <p className="mt-5 text-[11px] opacity-70">
-          Total Loan Amount = Principal + Interest. Starting Balance = Total + Processing Fee. Sundays not counted in term.
+          Total Loan Amount = Principal + Interest. Starting Balance = Total + Processing Fee. Sundays and holidays are excluded from collection days.
         </p>
       </div>
     </div>

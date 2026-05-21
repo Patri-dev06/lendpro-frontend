@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Plus, X, Loader2 } from "lucide-react";
+import { Plus, X, Loader2, CalendarOff } from "lucide-react";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { PermissionGuard } from "@/components/shared/AccessRestricted";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,10 @@ function SettingsPage() {
   const [termOptions, setTermOptions]       = useState<number[]>([30, 45, 60]);
   const [newTerm, setNewTerm]               = useState("");
 
+  const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
+  const [newHolidayDate, setNewHolidayDate] = useState("");
+  const [newHolidayName, setNewHolidayName] = useState("");
+
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
 
@@ -56,6 +60,12 @@ function SettingsPage() {
       } catch {
         setTermOptions([30, 45, 60]);
       }
+      try {
+        const parsed = JSON.parse(map.holidays ?? "[]");
+        if (Array.isArray(parsed)) setHolidays(parsed.filter((h: unknown) => h && typeof h === "object").sort((a: { date: string }, b: { date: string }) => a.date.localeCompare(b.date)));
+      } catch {
+        setHolidays([]);
+      }
     } catch {
       toast.error("Failed to load settings.");
     } finally {
@@ -64,6 +74,19 @@ function SettingsPage() {
   }, [token]);
 
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+  function addHoliday() {
+    if (!newHolidayDate) return;
+    if (holidays.some((h) => h.date === newHolidayDate)) {
+      setNewHolidayDate(""); setNewHolidayName(""); return;
+    }
+    setHolidays((prev) => [...prev, { date: newHolidayDate, name: newHolidayName.trim() || newHolidayDate }].sort((a, b) => a.date.localeCompare(b.date)));
+    setNewHolidayDate(""); setNewHolidayName("");
+  }
+
+  function removeHoliday(date: string) {
+    setHolidays((prev) => prev.filter((h) => h.date !== date));
+  }
 
   function addTerm() {
     const v = parseInt(newTerm, 10);
@@ -110,6 +133,7 @@ function SettingsPage() {
             { key: "default_interest_rate",    value: String(irNum) },
             { key: "default_service_charge",   value: String(scNum) },
             { key: "loan_term_options",        value: JSON.stringify(termOptions) },
+            { key: "holidays",                 value: JSON.stringify(holidays) },
           ],
         },
       });
@@ -241,6 +265,65 @@ function SettingsPage() {
           </div>
         </div>
 
+      </div>
+
+      {/* Holidays */}
+      <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-4">
+        <div>
+          <h3 className="font-display text-base font-semibold flex items-center gap-2">
+            <CalendarOff className="h-4 w-4 text-muted-foreground" />
+            Non-collection days (Holidays)
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            These dates are skipped when computing due dates and generating collection schedules, just like Sundays.
+          </p>
+        </div>
+
+        {holidays.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No holidays configured.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {holidays.map((h) => (
+              <span key={h.date} className="flex items-center gap-1.5 rounded-full border bg-secondary/60 px-3 py-1 text-xs font-medium">
+                <span className="text-muted-foreground">{h.date}</span>
+                <span>{h.name}</span>
+                {canEdit && (
+                  <button type="button" onClick={() => removeHoliday(h.date)} className="ml-0.5 rounded-full hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {canEdit && (
+          <div className="flex flex-wrap items-end gap-2 pt-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Date</Label>
+              <input
+                type="date"
+                value={newHolidayDate}
+                onChange={(e) => setNewHolidayDate(e.target.value)}
+                className="flex h-9 w-44 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Name (optional)</Label>
+              <input
+                type="text"
+                value={newHolidayName}
+                onChange={(e) => setNewHolidayName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addHoliday(); } }}
+                placeholder="e.g. Christmas Day"
+                className="flex h-9 w-52 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={addHoliday} disabled={!newHolidayDate} className="h-9">
+              <Plus className="mr-1 h-3.5 w-3.5" />Add holiday
+            </Button>
+          </div>
+        )}
       </div>
 
       {canEdit && (
