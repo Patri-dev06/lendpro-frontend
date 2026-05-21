@@ -83,6 +83,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
   const [remarks, setRemarks]     = useState("");
   const [saving, setSaving]       = useState(false);
   const [errors, setErrors]       = useState<Record<string, string>>({});
+  const [clientSearchBy, setClientSearchBy] = useState<"name" | "number" | "store">("name");
 
   const fetchDropdowns = useCallback(async () => {
     if (!token) return;
@@ -110,8 +111,8 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
       const defaultTerm = terms.includes(45) ? 45 : terms[0];
       setTermDays(defaultTerm);
 
-      // Pre-fill interest from rate × principal
-      const defaultInterest = rate > 0 ? Math.round(10000 * rate / 100) : 0;
+      const termRate = defaultTerm === 30 ? 5 : defaultTerm === 45 ? 7.5 : defaultTerm === 60 ? 10 : Math.round((defaultTerm / 30) * 5 * 10) / 10;
+      const defaultInterest = Math.round(10000 * termRate / 100);
       setInterest(defaultInterest);
       recalcDailyRaw(10000, defaultInterest, defSc, defaultTerm);
 
@@ -132,6 +133,13 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
   const totalReceivable = totalLoanAmount + sc;
   const dueDate = date ? addNonSundayDays(date, termDays) : null;
 
+  function getTermInterestRate(t: number): number {
+    if (t === 30) return 5;
+    if (t === 45) return 7.5;
+    if (t === 60) return 10;
+    return Math.round((t / 30) * 5 * 10) / 10;
+  }
+
   function recalcDailyRaw(p: number, i: number, s: number, t: number) {
     const tr = p + i + s;
     if (t > 0 && tr > 0) setDaily(Math.ceil(tr / t));
@@ -143,8 +151,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
 
   function handlePrincipalChange(p: number) {
     setPrincipal(p);
-    // Re-apply interest rate if it's still the auto-computed value
-    const autoInterest = defaultInterestRate > 0 ? Math.round(p * defaultInterestRate / 100) : interest;
+    const autoInterest = Math.round(p * getTermInterestRate(termDays) / 100);
     setInterest(autoInterest);
     recalcDaily(p, autoInterest, sc, termDays);
     setErrors((e) => ({ ...e, principal: "" }));
@@ -152,7 +159,9 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
 
   function handleTermChange(t: number) {
     setTermDays(t);
-    recalcDaily(principal, interest, sc, t);
+    const autoInterest = Math.round(principal * getTermInterestRate(t) / 100);
+    setInterest(autoInterest);
+    recalcDaily(principal, autoInterest, sc, t);
   }
 
   function validate() {
@@ -160,7 +169,6 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
     if (!clientId)         e.client    = "Select a client.";
     if (!collectorId)      e.collector = "Select a collector.";
     if (principal <= 0)    e.principal = "Principal must be greater than 0.";
-    if (interest < 0)      e.interest  = "Interest cannot be negative.";
     if (sc < 0)            e.sc        = "Processing fee cannot be negative.";
     if (daily <= 0)        e.daily     = "Daily payment must be greater than 0.";
     if (!date)             e.date      = "Release date is required.";
@@ -247,19 +255,45 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Select client" error={errors.client}>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs">Select client</Label>
+              <Select value={clientSearchBy} onValueChange={(v) => setClientSearchBy(v as typeof clientSearchBy)}>
+                <SelectTrigger className="h-6 w-36 text-[11px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Client name</SelectItem>
+                  <SelectItem value="number">Client #</SelectItem>
+                  <SelectItem value="store">Business name</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {errors.client && <p className="text-[11px] text-destructive">{errors.client}</p>}
             <SearchableCombobox
               options={clients.map((c) => ({
                 value: c.id.toString(),
                 label: c.name,
-                sub: c.store_name,
+                sub: clientSearchBy === "number"
+                  ? `#${c.number ?? c.id}`
+                  : clientSearchBy === "store"
+                    ? c.store_name
+                    : c.store_name,
               }))}
               value={clientId?.toString() ?? ""}
-              onChange={(v) => { setClientId(Number(v)); setErrors((e) => ({ ...e, client: "" })); }}
-              placeholder="Search by name or store…"
+              onChange={(v) => {
+                const id = Number(v);
+                setClientId(id);
+                const client = clients.find((c) => c.id === id);
+                if (client?.collector_id) setCollectorId(client.collector_id);
+                setErrors((e) => ({ ...e, client: "" }));
+              }}
+              placeholder={
+                clientSearchBy === "number" ? "Type client #…"
+                : clientSearchBy === "store" ? "Type business name…"
+                : "Type client name…"
+              }
               error={!!errors.client}
             />
-          </Field>
+          </div>
 
           <Field label="Assigned collector" error={errors.collector}>
             <SearchableCombobox
@@ -284,18 +318,12 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
           </Field>
 
           <Field
-            label={`Interest (₱)${defaultInterestRate > 0 ? ` — ${defaultInterestRate}% default` : ""}`}
-            error={errors.interest}
+            label={`Interest (₱) — ${getTermInterestRate(termDays)}% (${termDays}-day rate)`}
           >
             <Input
-              type="number" min={0} value={interest}
-              className={errors.interest ? "border-destructive" : ""}
-              onChange={(e) => {
-                const v = Number(e.target.value) || 0;
-                setInterest(v);
-                recalcDaily(principal, v, sc, termDays);
-                setErrors((err) => ({ ...err, interest: "" }));
-              }}
+              value={formatPHP(interest)}
+              readOnly
+              className="bg-muted/40 text-muted-foreground"
             />
           </Field>
 
@@ -335,7 +363,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
 
           <Field label="Daily payment (₱)" error={errors.daily}>
             <Input
-              type="number" min={0} value={daily}
+              type="number" min={0} value={daily || ""}
               className={errors.daily ? "border-destructive" : ""}
               onChange={(e) => { setDaily(Number(e.target.value) || 0); setErrors((err) => ({ ...err, daily: "" })); }}
             />

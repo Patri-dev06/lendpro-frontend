@@ -13,6 +13,8 @@ import { toast } from "sonner";
 interface SummaryRow {
   loan_number: string;
   client_name: string;
+  daily: number;
+  carry_over: number;
   collectible: number;
   balance: number;
   payment: number;
@@ -129,25 +131,33 @@ ${content}
               <TableRow>
                 <TableHead>Loan #</TableHead>
                 <TableHead>Client Name</TableHead>
-                <TableHead className="text-right">Collectible for the Day</TableHead>
-                <TableHead className="text-right">Total Balance</TableHead>
+                <TableHead className="text-right">Daily</TableHead>
+                <TableHead className="text-right">Missed (Carry-over)</TableHead>
+                <TableHead className="text-right">Total Collectible</TableHead>
+                <TableHead className="text-right">Balance</TableHead>
                 <TableHead className="text-right">Payment</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <tr><td colSpan={5} className="py-10 text-center">
+                <tr><td colSpan={7} className="py-10 text-center">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                 </td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                <tr><td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
                   No active loans found for this date.
                 </td></tr>
               ) : rows.map((r) => (
-                <TableRow key={r.loan_number}>
+                <TableRow key={r.loan_number} className={r.carry_over > 0 ? "bg-warning/5" : ""}>
                   <TableCell className="num text-xs text-muted-foreground">{r.loan_number}</TableCell>
                   <TableCell className="font-medium">{r.client_name}</TableCell>
-                  <TableCell className="text-right num">{formatPHP(r.collectible)}</TableCell>
+                  <TableCell className="text-right num">{formatPHP(r.daily)}</TableCell>
+                  <TableCell className="text-right num">
+                    {r.carry_over > 0
+                      ? <span className="font-semibold text-warning">+{formatPHP(r.carry_over)}</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="text-right num font-semibold">{formatPHP(r.collectible)}</TableCell>
                   <TableCell className="text-right num">{formatPHP(r.balance)}</TableCell>
                   <TableCell className="text-right num font-semibold">
                     {r.payment > 0
@@ -159,6 +169,7 @@ ${content}
               {!loading && (
                 <TableRow className="border-t-2 bg-muted/40 font-bold">
                   <TableCell colSpan={2} className="text-sm font-semibold">Total</TableCell>
+                  <TableCell colSpan={2} />
                   <TableCell className="text-right num font-semibold">{formatPHP(totals.collectible)}</TableCell>
                   <TableCell className="text-right num font-semibold">{formatPHP(totals.balance)}</TableCell>
                   <TableCell className="text-right num font-bold text-primary">{formatPHP(totals.payment)}</TableCell>
