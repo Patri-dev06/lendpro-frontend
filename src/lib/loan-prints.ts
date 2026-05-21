@@ -61,7 +61,10 @@ export function printTILA(p: PrintTILAParams) {
   .lbl{color:#555}.val{font-weight:bold}
   .total{display:flex;justify-content:space-between;font-weight:bold;font-size:13px;padding:6px 0;border-top:2px solid #333;margin-top:4px}
   .sigs{display:flex;gap:40px;margin-top:48px}
-  .sig{flex:1;border-top:1px solid #000;padding-top:4px;font-size:9px;text-align:center}
+  .sig{flex:1;text-align:center;font-size:9px}
+  .sig-line{border-top:1px solid #000;margin-bottom:4px}
+  .sig-name{font-weight:bold;font-size:10px}
+  .sig-role{color:#555}
   .footer{font-size:9px;color:#888;margin-top:20px;text-align:center;border-top:1px solid #ddd;padding-top:8px}
   p{line-height:1.6;margin:0}
   @media print{body{padding:20px}}
@@ -99,8 +102,20 @@ export function printTILA(p: PrintTILAParams) {
   <p>I/We have read, understood, and agree to the terms and conditions of this loan as stated above. I/We acknowledge receipt of this Truth in Lending Disclosure Statement prior to the consummation of this credit transaction, in accordance with the provisions of Republic Act No. 3765.</p>
 </div>
 <div class="sigs">
-  <div class="sig"><br/><br/><br/>Signature over Printed Name of Borrower<br/>Date: _______________</div>
-  <div class="sig"><br/><br/><br/>Authorized Lending Representative<br/>Date: _______________</div>
+  <div class="sig">
+    <br/><br/><br/>
+    <div class="sig-line"></div>
+    <div class="sig-name">${p.client.name}</div>
+    <div class="sig-role">Signature of Borrower</div>
+    <div style="margin-top:6px">Date: _______________</div>
+  </div>
+  <div class="sig">
+    <br/><br/><br/>
+    <div class="sig-line"></div>
+    <div class="sig-name">${p.collector.name}</div>
+    <div class="sig-role">Loan Agent / Authorized Representative</div>
+    <div style="margin-top:6px">Date: _______________</div>
+  </div>
 </div>
 <div class="footer">This disclosure is issued in compliance with Republic Act No. 3765 (Truth in Lending Act) and its implementing rules and regulations.</div>
 </body></html>`);
@@ -142,6 +157,11 @@ export function printInvoice(p: PrintInvoiceParams) {
   .right{text-align:right}
   .total-row td{font-weight:bold;background:#eff6ff;border-top:2px solid #2563eb;font-size:13px}
   .footer{margin-top:24px;font-size:9px;color:#999;border-top:1px solid #e5e7eb;padding-top:8px}
+  .sigs{display:flex;gap:40px;margin-top:48px}
+  .sig{flex:1;text-align:center;font-size:9px}
+  .sig-line{border-top:1px solid #000;margin-bottom:4px}
+  .sig-name{font-weight:bold;font-size:10px}
+  .sig-role{color:#555}
   @media print{body{padding:20px}}
 </style></head><body>
 <div class="hdr">
@@ -168,7 +188,23 @@ export function printInvoice(p: PrintInvoiceParams) {
 </table>
 <div class="footer">
   <p>Thank you for your business. Daily payment of ${formatPHP(p.daily)} for ${p.termDays} days (Sundays excluded). Due date: ${p.dueDate ? formatDate(p.dueDate) : "—"}.</p>
-  <p>Collector: ${p.collector.name}${p.remarks ? ` — Remarks: ${p.remarks}` : ""}</p>
+  ${p.remarks ? `<p>Remarks: ${p.remarks}</p>` : ""}
+</div>
+<div class="sigs">
+  <div class="sig">
+    <br/><br/><br/>
+    <div class="sig-line"></div>
+    <div class="sig-name">${p.client.name}</div>
+    <div class="sig-role">Signature of Borrower</div>
+    <div style="margin-top:6px">Date: _______________</div>
+  </div>
+  <div class="sig">
+    <br/><br/><br/>
+    <div class="sig-line"></div>
+    <div class="sig-name">${p.collector.name}</div>
+    <div class="sig-role">Loan Agent / Authorized Representative</div>
+    <div style="margin-top:6px">Date: _______________</div>
+  </div>
 </div>
 </body></html>`);
   win.document.close(); win.focus(); win.print();
@@ -211,7 +247,10 @@ export function printLoanForm(p: PrintLoanFormParams) {
   .amt-table .tot{font-weight:bold;font-size:12px;background:#f8f8f8}
   .terms{font-size:9px;line-height:1.6;color:#555;border:1px solid #ddd;padding:8px;border-radius:4px;margin-top:8px}
   .sigs{display:flex;gap:24px;margin-top:44px}
-  .sig{flex:1;border-top:1px solid #000;padding-top:4px;font-size:9px;text-align:center}
+  .sig{flex:1;text-align:center;font-size:9px}
+  .sig-line{border-top:1px solid #000;margin-bottom:4px}
+  .sig-name{font-weight:bold;font-size:10px}
+  .sig-role{color:#555}
   @media print{body{padding:20px}}
 </style></head><body>
 <h1>LOAN AGREEMENT &amp; PROMISSORY NOTE</h1>
@@ -252,9 +291,27 @@ ${p.remarks ? `<div class="frow"><div class="field"><div class="flbl">Remarks</d
   <strong>Terms &amp; Conditions:</strong> The borrower agrees to pay the daily payment amount on all non-Sunday days until the full balance is settled. Late payments are subject to penalty charges as agreed upon. The borrower acknowledges receipt of the full principal amount stated above. This document constitutes a promissory note and is legally binding upon signing.
 </div>
 <div class="sigs">
-  <div class="sig"><br/><br/><br/>Signature over Printed Name of Borrower<br/>Date: _______________</div>
-  <div class="sig"><br/><br/><br/>Printed Name &amp; Signature of Co-Borrower / Guarantor<br/>Date: _______________</div>
-  <div class="sig"><br/><br/><br/>Authorized Lending Officer<br/>Date: _______________</div>
+  <div class="sig">
+    <br/><br/><br/>
+    <div class="sig-line"></div>
+    <div class="sig-name">${p.client.name}</div>
+    <div class="sig-role">Signature of Borrower</div>
+    <div style="margin-top:6px">Date: _______________</div>
+  </div>
+  <div class="sig">
+    <br/><br/><br/>
+    <div class="sig-line"></div>
+    <div class="sig-name">___________________________</div>
+    <div class="sig-role">Co-Borrower / Guarantor (if any)</div>
+    <div style="margin-top:6px">Date: _______________</div>
+  </div>
+  <div class="sig">
+    <br/><br/><br/>
+    <div class="sig-line"></div>
+    <div class="sig-name">${p.collector.name}</div>
+    <div class="sig-role">Loan Agent / Authorized Representative</div>
+    <div style="margin-top:6px">Date: _______________</div>
+  </div>
 </div>
 </body></html>`);
   win.document.close(); win.focus(); win.print();
