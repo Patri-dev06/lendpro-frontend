@@ -21,6 +21,7 @@ interface ApiLoanSummary {
 interface LedgerRow {
   day: number;
   scheduled_date: string;
+  payment_date: string | null;
   expected: number;
   actual: number;
   previous_balance: number;
@@ -107,10 +108,13 @@ export function ClientLedgerTab() {
   table{width:100%;border-collapse:collapse;margin-top:10px}
   th{background:#f0f0f0;font-size:10px;text-transform:uppercase;padding:6px 8px;border:1px solid #ccc}
   td{padding:5px 8px;border:1px solid #e0e0e0}
-  .right{text-align:right}.paid{color:#16a34a}.pending{color:#9ca3af}
+  .right{text-align:right}.paid{color:#16a34a}.pending{color:#9ca3af}.date-paid{color:#16a34a;font-weight:600}
   .total-row td{font-weight:bold;background:#f8f8f8;border-top:2px solid #aaa}
   .sig-block{display:flex;gap:40px;margin-top:32px}
-  .sig{flex:1;border-top:1px solid #000;padding-top:4px;font-size:9px;text-align:center}
+  .sig{flex:1;text-align:center;font-size:9px}
+  .sig-line{border-top:1px solid #000;margin-bottom:4px}
+  .sig-name{font-weight:bold;font-size:10px}
+  .sig-role{color:#555}
   @media print{body{padding:20px}}
 </style></head><body>
 <div class="co">BuenaMano Lending Corporation</div>
@@ -132,8 +136,20 @@ export function ClientLedgerTab() {
 </div>
 ${content}
 <div class="sig-block">
-  <div class="sig"><br/><br/>Signature of Borrower / Date</div>
-  <div class="sig"><br/><br/>Verified by (Collector) / Date</div>
+  <div class="sig">
+    <br/><br/>
+    <div class="sig-line"></div>
+    <div class="sig-name">${ledger.client.name}</div>
+    <div class="sig-role">Signature of Borrower</div>
+    <div style="margin-top:4px">Date: _______________</div>
+  </div>
+  <div class="sig">
+    <br/><br/>
+    <div class="sig-line"></div>
+    <div class="sig-name">${ledger.collector.name}</div>
+    <div class="sig-role">Loan Agent / Verified by</div>
+    <div style="margin-top:4px">Date: _______________</div>
+  </div>
 </div>
 <div style="margin-top:16px;font-size:9px;color:#888">Printed: ${new Date().toLocaleDateString("en-PH")} — BuenaMano Lending Corporation</div>
 </body></html>`);
@@ -196,7 +212,8 @@ ${content}
                 <TableHeader>
                   <TableRow>
                     <TableHead>Day #</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead>Scheduled</TableHead>
+                    <TableHead>Date Paid</TableHead>
                     <TableHead className="text-right">Daily Due</TableHead>
                     <TableHead className="text-right">Amount Paid</TableHead>
                     <TableHead className="text-right">Running Balance</TableHead>
@@ -208,6 +225,11 @@ ${content}
                     <TableRow key={r.day} className={r.status === "pending" ? "opacity-50" : ""}>
                       <TableCell className="num text-xs text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="text-sm">{formatDate(r.scheduled_date)}</TableCell>
+                      <TableCell className="text-sm">
+                        {r.payment_date
+                          ? <span className="text-success font-medium">{formatDate(r.payment_date)}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell className="text-right num">{formatPHP(r.expected)}</TableCell>
                       <TableCell className="text-right num font-medium">
                         {r.actual > 0
@@ -223,7 +245,7 @@ ${content}
                     </TableRow>
                   ))}
                   <TableRow className="border-t-2 bg-muted/40 font-bold">
-                    <TableCell colSpan={3} className="text-sm font-semibold">Total</TableCell>
+                    <TableCell colSpan={4} className="text-sm font-semibold">Total</TableCell>
                     <TableCell className="text-right num font-semibold text-success">{formatPHP(ledger.total_paid)}</TableCell>
                     <TableCell className="text-right num font-semibold">{formatPHP(ledger.loan.current_balance)}</TableCell>
                     <TableCell />
