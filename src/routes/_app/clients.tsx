@@ -247,7 +247,8 @@ function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onC
   function validate() {
     const e: Record<string, string> = {};
     if (!name.trim())      e.name        = "Client name is required.";
-    if (!phone.trim())     e.phone       = "Cellphone number is required.";
+    if (!phone.trim())                          e.phone = "Cellphone number is required.";
+    else if (phone.replace(/\D/g, "").length !== 10) e.phone = "Enter 10 digits after +63 (e.g. 917 000 0000).";
     if (!storeName.trim()) e.storeName   = "Store name is required.";
     if (!street.trim())    e.street      = "Street is required.";
     if (!province)         e.province    = "Province is required.";
@@ -266,13 +267,15 @@ function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onC
       .filter(Boolean)
       .join(", ");
 
+    const localPhone = "0" + phone.replace(/\D/g, "");
+
     setLoading(true);
     try {
       const newClient = await apiRequest<Client>("POST", "clients", {
         token,
         body: {
           name:         name.trim(),
-          phone:        phone.trim(),
+          phone:        localPhone,
           store_name:   storeName.trim(),
           email:        email.trim() || null,
           address:      fullAddress,
@@ -304,8 +307,17 @@ function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onC
         </Field>
 
         <Field label="Cellphone number" error={errors.phone}>
-          <Input value={phone} onChange={(e) => { setPhone(e.target.value); setErrors((p) => ({ ...p, phone: "" })); }}
-            placeholder="+63 917 000 0000" disabled={loading} className={errors.phone ? "border-destructive" : ""} />
+          <div className={`flex h-9 w-full overflow-hidden rounded-md border bg-background text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${errors.phone ? "border-destructive" : "border-input"}`}>
+            <span className="flex items-center border-r bg-muted px-3 text-muted-foreground select-none">+63</span>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => { setPhone(e.target.value.replace(/[^\d\s]/g, "")); setErrors((p) => ({ ...p, phone: "" })); }}
+              placeholder="917 000 0000"
+              disabled={loading}
+              className="flex-1 bg-transparent px-3 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
         </Field>
 
         <Field label="Store / Business name" error={errors.storeName}>
