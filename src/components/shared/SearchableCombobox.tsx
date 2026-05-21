@@ -16,6 +16,7 @@ interface Props {
   className?: string;
   error?: boolean;
   disabled?: boolean;
+  filterFn?: (opt: ComboboxOption, query: string) => boolean;
 }
 
 export function SearchableCombobox({
@@ -26,6 +27,7 @@ export function SearchableCombobox({
   className,
   error,
   disabled,
+  filterFn,
 }: Props) {
   const [open, setOpen]   = useState(false);
   const [query, setQuery]  = useState("");
@@ -34,13 +36,12 @@ export function SearchableCombobox({
   const selected = options.find((o) => o.value === value);
 
   const filtered = query
-    ? options.filter((o) => {
-        const q = query.toLowerCase();
-        return (
-          o.label.toLowerCase().includes(q) ||
-          (o.sub?.toLowerCase().includes(q) ?? false)
-        );
-      })
+    ? options.filter((o) =>
+        filterFn
+          ? filterFn(o, query)
+          : o.label.toLowerCase().includes(query.toLowerCase()) ||
+            (o.sub?.toLowerCase().includes(query.toLowerCase()) ?? false)
+      )
     : options;
 
   useEffect(() => {

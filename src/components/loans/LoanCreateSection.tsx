@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field } from "@/components/shared/Field";
 import { SumRow } from "@/components/shared/SumRow";
-import { SearchableCombobox } from "@/components/shared/SearchableCombobox";
+import { SearchableCombobox, type ComboboxOption } from "@/components/shared/SearchableCombobox";
 import { DateInput } from "@/components/shared/DateInput";
 import { formatPHP, formatDate, addNonSundayDays } from "@/lib/format";
 import { LOAN_TYPE_LABELS, type LoanType } from "@/lib/loan-constants";
@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 interface ApiClient {
   id: number;
+  number?: string;
   name: string;
   store_name: string;
   address: string;
@@ -87,6 +88,8 @@ export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Pro
   const [remarks, setRemarks]     = useState("");
   const [saving, setSaving]       = useState(false);
   const [errors, setErrors]       = useState<Record<string, string>>({});
+  const [clientSearchBy, setClientSearchBy] = useState<"all" | "name" | "number" | "store">("all");
+  const [collectorOverride, setCollectorOverride] = useState(false);
 
   const fetchDropdowns = useCallback(async () => {
     if (!token) return;
@@ -154,11 +157,32 @@ export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Pro
     recalcDailyRaw(p, i, s, t);
   }
 
+  const clientFilterFn = useCallback(
+    (opt: ComboboxOption, q: string) => {
+      const client = clients.find((c) => c.id.toString() === opt.value);
+      if (!client) return false;
+      const lq = q.toLowerCase();
+      switch (clientSearchBy) {
+        case "name":   return client.name.toLowerCase().includes(lq);
+        case "number": return (client.number ?? client.id.toString()).toLowerCase().includes(lq);
+        case "store":  return client.store_name.toLowerCase().includes(lq);
+        default:
+          return (
+            client.name.toLowerCase().includes(lq) ||
+            (client.number ?? client.id.toString()).toLowerCase().includes(lq) ||
+            client.store_name.toLowerCase().includes(lq)
+          );
+      }
+    },
+    [clients, clientSearchBy],
+  );
+
   function handleClientChange(v: string) {
     const id = Number(v);
     setClientId(id);
     const client = clients.find((c) => c.id === id);
     if (client?.collector_id) setCollectorId(client.collector_id);
+    setCollectorOverride(false);
     setErrors((e) => ({ ...e, client: "", collector: "" }));
   }
 
@@ -269,7 +293,20 @@ export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Pro
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Select client" error={errors.client}>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs">Select client</Label>
+              <Select value={clientSearchBy} onValueChange={(v) => setClientSearchBy(v as typeof clientSearchBy)}>
+                <SelectTrigger className="h-6 w-36 text-[11px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All fields</SelectItem>
+                  <SelectItem value="name">Client name</SelectItem>
+                  <SelectItem value="number">Client #</SelectItem>
+                  <SelectItem value="store">Business name</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {errors.client && <p className="text-[11px] text-destructive">{errors.client}</p>}
             <SearchableCombobox
               options={clients.map((c) => ({
                 value: c.id.toString(),
@@ -278,23 +315,38 @@ export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Pro
               }))}
               value={clientId?.toString() ?? ""}
               onChange={handleClientChange}
-              placeholder="Search by name or store…"
+              placeholder="Search…"
               error={!!errors.client}
+              filterFn={clientFilterFn}
             />
-          </Field>
+          </div>
 
           <Field label="Assigned collector" error={errors.collector}>
-            <SearchableCombobox
-              options={collectors.map((c) => ({
-                value: c.id.toString(),
-                label: c.name,
-                sub: c.area,
-              }))}
-              value={collectorId?.toString() ?? ""}
-              onChange={(v) => { setCollectorId(Number(v)); setErrors((e) => ({ ...e, collector: "" })); }}
-              placeholder="Search by name or area…"
-              error={!!errors.collector}
-            />
+            {selectedClient?.collector && !collectorOverride ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={`${selectedClient.collector.name} — ${selectedClient.collector.area}`}
+                  readOnly
+                  className="bg-muted/40 text-muted-foreground"
+                />
+                <span className="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Auto</span>
+                <Button type="button" variant="ghost" size="sm" className="h-9 shrink-0 px-2 text-xs" onClick={() => setCollectorOverride(true)}>
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <SearchableCombobox
+                options={collectors.map((c) => ({
+                  value: c.id.toString(),
+                  label: c.name,
+                  sub: c.area,
+                }))}
+                value={collectorId?.toString() ?? ""}
+                onChange={(v) => { setCollectorId(Number(v)); setErrors((e) => ({ ...e, collector: "" })); }}
+                placeholder="Search by name or area…"
+                error={!!errors.collector}
+              />
+            )}
           </Field>
 
           <Field label="Principal loan (₱)" error={errors.principal}>
