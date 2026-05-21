@@ -45,6 +45,7 @@ export interface ApiLoan {
   total_receivable: number;
   daily_payment: number;
   term_days: number;
+  holiday_count: number;
   current_balance: number;
   release_date: string;
   due_date: string;
@@ -79,6 +80,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
   const [interest, setInterest]   = useState(0);
   const [sc, setSc]               = useState(0);
   const [termDays, setTermDays]   = useState<number>(45);
+  const [holidayCount, setHolidayCount] = useState(0);
   const [daily, setDaily]         = useState(0);
   const [date, setDate]           = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks]     = useState("");
@@ -139,7 +141,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
 
   const totalLoanAmount = principal + interest;
   const totalReceivable = totalLoanAmount + sc;
-  const dueDate = date ? addNonSundayDays(date, termDays, holidays) : null;
+  const dueDate = date ? addNonSundayDays(date, termDays + holidayCount, holidays) : null;
 
   function getTermInterestRate(t: number): number {
     if (t === 30) return 5;
@@ -199,6 +201,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
           service_charge: sc,
           daily_payment:  daily,
           term_days:      termDays,
+          holiday_count:  holidayCount,
           release_date:   date,
           remarks:        remarks || null,
         },
@@ -216,6 +219,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
       setInterest(resetInterest);
       setTermDays(resetTerm);
       recalcDailyRaw(resetPrincipal, resetInterest, resetSc, resetTerm);
+      setHolidayCount(0);
       setRemarks(""); setErrors({});
       setDate(new Date().toISOString().slice(0, 10));
     } catch (err) {
@@ -340,6 +344,19 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {termOptions.map((t) => <SelectItem key={t} value={String(t)}>{t} collection days (Mon–Sat)</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="Holidays within term">
+            <Select value={String(holidayCount)} onValueChange={(v) => setHolidayCount(Number(v))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[0, 1, 2, 3, 4, 5].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n === 0 ? "None" : `${n} holiday${n > 1 ? "s" : ""} (+${n} day${n > 1 ? "s" : ""})`}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </Field>
