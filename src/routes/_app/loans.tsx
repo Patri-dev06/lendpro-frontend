@@ -9,12 +9,16 @@ import { toast } from "sonner";
 import { PermissionGuard } from "@/components/shared/AccessRestricted";
 
 export const Route = createFileRoute("/_app/loans")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    clientId: typeof search.clientId === "number" ? (search.clientId as number) : undefined,
+  }),
   head: () => ({ meta: [{ title: "Loans — BuenaMano" }] }),
   component: LoansPage,
 });
 
 function LoansPage() {
   const { token } = useRole();
+  const { clientId: initialClientId } = Route.useSearch();
   const [loans, setLoans]     = useState<ApiLoan[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,7 +44,7 @@ function LoansPage() {
     <PermissionGuard permission="loans:read">
     <div className="space-y-6">
       <PageHeader title="Loan management" subtitle="Encode new loans and review the active loan ledger." />
-      <LoanCreateSection token={token} onLoanCreated={handleLoanCreated} />
+      <LoanCreateSection token={token} onLoanCreated={handleLoanCreated} initialClientId={initialClientId} />
       <ActiveLoanTable loans={loans} loading={loading} />
     </div>
     </PermissionGuard>

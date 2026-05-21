@@ -1,6 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, Eye, Mail, MailCheck, Loader2 } from "lucide-react";
+import { Plus, Search, Eye, Mail, MailCheck, Loader2, FileText } from "lucide-react";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { StatusBadge } from "@/components/finance/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SearchableCombobox } from "@/components/shared/SearchableCombobox";
+import { PH_PROVINCES, PH_CITIES } from "@/lib/ph-locations";
 import { apiRequest } from "@/lib/api";
 import { useRole } from "@/lib/role-context";
-import { formatPHP } from "@/lib/format";
 import { toast } from "sonner";
 import { PermissionGuard } from "@/components/shared/AccessRestricted";
 
@@ -57,6 +58,7 @@ export const Route = createFileRoute("/_app/clients")({
 /* ---------- Page ---------- */
 function ClientsPage() {
   const { token } = useRole();
+  const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
   const [collectors, setCollectors] = useState<Collector[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,6 +203,11 @@ function ClientsPage() {
           collectors={collectors}
           token={token ?? undefined}
           onSaved={() => { setAddOpen(false); fetchData(); }}
+          onSavedAndCreateLoan={(clientId) => {
+            setAddOpen(false);
+            fetchData();
+            navigate({ to: "/loans", search: { clientId } });
+          }}
           onCancel={() => setAddOpen(false)}
         />
       </Dialog>
@@ -219,52 +226,66 @@ interface AddClientDialogProps {
   collectors: Collector[];
   token?: string;
   onSaved: () => void;
+  onSavedAndCreateLoan: (clientId: number) => void;
   onCancel: () => void;
 }
 
-function AddClientDialog({ collectors, token, onSaved, onCancel }: AddClientDialogProps) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onCancel }: AddClientDialogProps) {
+  const [name, setName]           = useState("");
+  const [phone, setPhone]         = useState("");
   const [storeName, setStoreName] = useState("");
-  const [email, setEmail] = useState("");
-  const [address, setAddress] = useState("");
-  const [type, setType] = useState("new");
+  const [email, setEmail]         = useState("");
+  const [street, setStreet]           = useState("");
+  const [subdivision, setSubdivision] = useState("");
+  const [province, setProvince]       = useState("");
+  const [city, setCity]               = useState("");
+  const [type, setType]           = useState("new");
   const [collectorId, setCollectorId] = useState(collectors[0]?.id?.toString() ?? "");
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading]     = useState(false);
+  const [errors, setErrors]       = useState<Record<string, string>>({});
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!name.trim())       e.name        = "Client name is required.";
-    if (!phone.trim())      e.phone       = "Cellphone number is required.";
-    if (!storeName.trim())  e.storeName   = "Store name is required.";
-    if (!address.trim())    e.address     = "Address is required.";
-    if (!collectorId)       e.collectorId = "Please assign a collector.";
+    if (!name.trim())      e.name        = "Client name is required.";
+    if (!phone.trim())     e.phone       = "Cellphone number is required.";
+    if (!storeName.trim()) e.storeName   = "Store name is required.";
+    if (!street.trim())    e.street      = "Street is required.";
+    if (!province)         e.province    = "Province is required.";
+    if (!city)             e.city        = "City / Municipality is required.";
+    if (!collectorId)      e.collectorId = "Please assign a collector.";
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-                            e.email       = "Invalid email address.";
+                           e.email       = "Invalid email address.";
     return e;
   }
 
-  async function handleSave() {
+  async function submit(goToLoan: boolean) {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
 
+    const fullAddress = [street.trim(), subdivision.trim(), city, province]
+      .filter(Boolean)
+      .join(", ");
+
     setLoading(true);
     try {
-      await apiRequest("POST", "clients", {
+      const newClient = await apiRequest<Client>("POST", "clients", {
         token,
         body: {
           name:         name.trim(),
           phone:        phone.trim(),
           store_name:   storeName.trim(),
           email:        email.trim() || null,
-          address:      address.trim(),
+          address:      fullAddress,
           type,
           collector_id: Number(collectorId),
         },
       });
       toast.success("Client saved!", { description: `${name.trim()} has been added successfully.` });
-      onSaved();
+      if (goToLoan) {
+        onSavedAndCreateLoan(newClient.id);
+      } else {
+        onSaved();
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save client.");
     } finally {
@@ -273,29 +294,63 @@ function AddClientDialog({ collectors, token, onSaved, onCancel }: AddClientDial
   }
 
   return (
-    <DialogContent className="max-w-xl">
+    <DialogContent className="max-w-2xl">
       <DialogHeader><DialogTitle>Add new client</DialogTitle></DialogHeader>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
         <Field label="Client name" error={errors.name}>
           <Input value={name} onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: "" })); }}
             placeholder="Juan Dela Cruz" disabled={loading} className={errors.name ? "border-destructive" : ""} />
         </Field>
+
         <Field label="Cellphone number" error={errors.phone}>
           <Input value={phone} onChange={(e) => { setPhone(e.target.value); setErrors((p) => ({ ...p, phone: "" })); }}
             placeholder="+63 917 000 0000" disabled={loading} className={errors.phone ? "border-destructive" : ""} />
         </Field>
-        <Field label="Store name" error={errors.storeName}>
+
+        <Field label="Store / Business name" error={errors.storeName}>
           <Input value={storeName} onChange={(e) => { setStoreName(e.target.value); setErrors((p) => ({ ...p, storeName: "" })); }}
             placeholder="Juan Sari-Sari Store" disabled={loading} className={errors.storeName ? "border-destructive" : ""} />
         </Field>
+
         <Field label="Email address (optional)" error={errors.email}>
           <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }}
             placeholder="client@email.com" disabled={loading} className={errors.email ? "border-destructive" : ""} />
         </Field>
-        <Field label="Address" full error={errors.address}>
-          <Input value={address} onChange={(e) => { setAddress(e.target.value); setErrors((p) => ({ ...p, address: "" })); }}
-            placeholder="Street, Barangay, City" disabled={loading} className={errors.address ? "border-destructive" : ""} />
+
+        <Field label="Street / Barangay" full error={errors.street}>
+          <Input value={street} onChange={(e) => { setStreet(e.target.value); setErrors((p) => ({ ...p, street: "" })); }}
+            placeholder="e.g. 123 Rizal St., Brgy. San Jose" disabled={loading}
+            className={errors.street ? "border-destructive" : ""} />
         </Field>
+
+        <Field label="Subdivision (optional)" full>
+          <Input value={subdivision} onChange={(e) => setSubdivision(e.target.value)}
+            placeholder="e.g. Greenville Subdivision" disabled={loading} />
+        </Field>
+
+        <Field label="Province" error={errors.province}>
+          <SearchableCombobox
+            options={PH_PROVINCES.map((p) => ({ value: p, label: p }))}
+            value={province}
+            onChange={(v) => { setProvince(v); setCity(""); setErrors((p) => ({ ...p, province: "" })); }}
+            placeholder="Search province…"
+            error={!!errors.province}
+            disabled={loading}
+          />
+        </Field>
+
+        <Field label="City / Municipality" error={errors.city}>
+          <SearchableCombobox
+            options={(PH_CITIES[province] ?? []).map((c) => ({ value: c, label: c }))}
+            value={city}
+            onChange={(v) => { setCity(v); setErrors((p) => ({ ...p, city: "" })); }}
+            placeholder={province ? "Search city…" : "Select province first"}
+            error={!!errors.city}
+            disabled={loading || !province}
+          />
+        </Field>
+
         <Field label="Client type">
           <Select value={type} onValueChange={setType} disabled={loading}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -305,19 +360,31 @@ function AddClientDialog({ collectors, token, onSaved, onCancel }: AddClientDial
             </SelectContent>
           </Select>
         </Field>
+
         <Field label="Assigned collector" error={errors.collectorId}>
           <Select value={collectorId} onValueChange={(v) => { setCollectorId(v); setErrors((p) => ({ ...p, collectorId: "" })); }} disabled={loading}>
             <SelectTrigger className={errors.collectorId ? "border-destructive" : ""}><SelectValue placeholder="Select collector" /></SelectTrigger>
             <SelectContent>
-              {collectors.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+              {collectors.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.name}
+                  <span className="ml-1.5 text-xs text-muted-foreground">— {c.area}</span>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Field>
+
       </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>
-        <Button className="bg-primary text-primary-foreground hover:bg-primary-glow" onClick={handleSave} disabled={loading}>
-          {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Save client"}
+      <DialogFooter className="flex-col gap-2 sm:flex-row">
+        <Button variant="outline" onClick={onCancel} disabled={loading} className="sm:mr-auto">Cancel</Button>
+        <Button variant="outline" onClick={() => submit(false)} disabled={loading}>
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Save client
+        </Button>
+        <Button className="bg-primary text-primary-foreground hover:bg-primary-glow" onClick={() => submit(true)} disabled={loading}>
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
+          Save & Create Loan
         </Button>
       </DialogFooter>
     </DialogContent>
