@@ -95,20 +95,21 @@ export function DirectInputTab() {
       toast.error("Please fill in all required fields.");
       return;
     }
+    const paidAmount = amount;
     setSaving(true);
     try {
-      await apiRequest("POST", "payments", {
+      const result = await apiRequest<{ amount: number; new_balance: number }>("POST", "payments", {
         token,
         body: {
           loan_id:      selectedLoanId,
           collector_id: collectorId,
           payment_date: date,
-          amount,
+          amount:       paidAmount,
           remarks:      remarks || null,
         },
       });
-      toast.success(`Payment of ${formatPHP(amount)} recorded.`, {
-        description: `New balance: ${formatPHP(newBalance)}`,
+      toast.success(`Payment of ${formatPHP(result.amount)} recorded.`, {
+        description: `New balance: ${formatPHP(result.new_balance)}`,
       });
       setRemarks("");
       // Refresh data
