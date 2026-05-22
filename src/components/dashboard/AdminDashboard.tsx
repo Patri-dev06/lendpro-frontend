@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Users, UserPlus, Repeat, AlertTriangle, AlertOctagon, CheckCircle2,
-  Wallet, TrendingUp, ArrowUpRight, Loader2, UsersRound, Gauge,
-  RefreshCw, Trophy, Calendar,
+  Wallet, TrendingUp, ArrowUpRight, ArrowUp, ArrowDown, ArrowUpDown,
+  Loader2, UsersRound, Gauge, RefreshCw, Trophy, Calendar, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +111,13 @@ export function AdminDashboard() {
   const [typeFilter, setTypeFilter]           = useState("all");
   const [effPeriod, setEffPeriod]             = useState<EfficiencyPeriod>("this_month");
   const [collectorPeriod, setCollectorPeriod] = useState<CollectorPeriod>("month");
+  const [leaderQ, setLeaderQ]                 = useState("");
+  const [monSort, setMonSort]   = useState<MonSort | null>(null);
+  const [monDir,  setMonDir]    = useState<"asc" | "desc">("asc");
+  function toggleMonSort(col: MonSort) {
+    if (monSort === col) setMonDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setMonSort(col); setMonDir("asc"); }
+  }
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -167,6 +174,17 @@ export function AdminDashboard() {
     return true;
   });
 
+  const monFiltered = monSort
+    ? [...filtered].sort((a, b) => {
+        let cmp = 0;
+        if (monSort === "client_name")      cmp = a.client.name.localeCompare(b.client.name);
+        else if (monSort === "store_name")  cmp = a.client.store_name.localeCompare(b.client.store_name);
+        else if (monSort === "due_date")    cmp = (a.due_date ?? "").localeCompare(b.due_date ?? "");
+        else                               cmp = (a[monSort] as number) - (b[monSort] as number);
+        return monDir === "asc" ? cmp : -cmp;
+      })
+    : filtered;
+
   const releasesThisMonth = monthlyReleases[monthlyReleases.length - 1]?.releases ?? 0;
   const releasesThisYear  = monthlyReleases.reduce((s, m) => s + m.releases, 0);
   const ytdExpected = financials.expected_daily * 26 * 12;
@@ -181,8 +199,8 @@ export function AdminDashboard() {
   const eff    = effMap[effPeriod];
   const effPct = effRate(eff.collected, eff.expected);
 
-  const dailyLeaders   = [...stats.collector_stats].sort((a, b) => b.collected_today - a.collected_today).slice(0, 5);
-  const monthlyLeaders = [...stats.collector_stats].sort((a, b) => b.collected_month - a.collected_month).slice(0, 5);
+  const dailyRanked   = [...stats.collector_stats].sort((a, b) => b.collected_today - a.collected_today);
+  const monthlyRanked = [...stats.collector_stats].sort((a, b) => b.collected_month - a.collected_month);
 
   const collectorPeriodLabel: Record<CollectorPeriod, string> = {
     today: "Today", week: "This Week", month: "This Month", year: "This Year",
@@ -542,58 +560,47 @@ export function AdminDashboard() {
       </div>
 
       {/* ── Section 6: Leaderboard ── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Daily Leaderboard */}
-        <div className="rounded-2xl border bg-card p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
+      <div className="rounded-2xl border bg-card shadow-sm">
+        {/* Leaderboard header + search */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+          <div className="flex items-center gap-2">
             <Trophy className="h-4 w-4 text-yellow-500" />
-            <h3 className="font-display text-base font-semibold">Daily Collection Leaders</h3>
+            <h3 className="font-display text-base font-semibold">Collection Leaderboard</h3>
           </div>
-          <div className="space-y-2">
-            {dailyLeaders.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No data yet today.</p>
-            ) : (
-              dailyLeaders.map((c, i) => (
-                <div key={c.id} className={`flex items-center gap-3 rounded-xl px-4 py-3 ${RANK_BG[i]}`}>
-                  <span className={`w-6 text-center text-sm font-bold ${RANK_COLORS[i]}`}>{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">{c.area}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold num text-success">{formatPHP(c.collected_today, { compact: true })}</p>
-                    <p className="text-xs text-muted-foreground">of {formatPHP(c.expected_daily, { compact: true })} expected</p>
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-9 w-52 pl-8 text-sm"
+              placeholder="Find collector…"
+              value={leaderQ}
+              onChange={(e) => setLeaderQ(e.target.value)}
+            />
           </div>
         </div>
 
-        {/* Monthly Leaderboard */}
-        <div className="rounded-2xl border bg-card p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Trophy className="h-4 w-4 text-yellow-500" />
-            <h3 className="font-display text-base font-semibold">Monthly Collection Leaders</h3>
+        <div className="grid grid-cols-1 gap-0 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x">
+          {/* Daily */}
+          <div className="p-5">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Today</p>
+            <LeaderList
+              ranked={dailyRanked}
+              query={leaderQ}
+              getValue={(c) => c.collected_today}
+              getExpected={(c) => c.expected_daily}
+              emptyMsg="No data yet today."
+            />
           </div>
-          <div className="space-y-2">
-            {monthlyLeaders.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No data yet this month.</p>
-            ) : (
-              monthlyLeaders.map((c, i) => (
-                <div key={c.id} className={`flex items-center gap-3 rounded-xl px-4 py-3 ${RANK_BG[i]}`}>
-                  <span className={`w-6 text-center text-sm font-bold ${RANK_COLORS[i]}`}>{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">{c.area}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold num text-success">{formatPHP(c.collected_month, { compact: true })}</p>
-                    <p className="text-xs text-muted-foreground">of {formatPHP(c.expected_month, { compact: true })} expected</p>
-                  </div>
-                </div>
-              ))
-            )}
+
+          {/* Monthly */}
+          <div className="p-5">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">This Month</p>
+            <LeaderList
+              ranked={monthlyRanked}
+              query={leaderQ}
+              getValue={(c) => c.collected_month}
+              getExpected={(c) => c.expected_month}
+              emptyMsg="No data yet this month."
+            />
           </div>
         </div>
       </div>
@@ -623,21 +630,21 @@ export function AdminDashboard() {
         <div className="overflow-x-auto">
           <Table className="min-w-250">
             <TableHeader>
-              <TableRow>
-                <TableHead>Client</TableHead>
-                <TableHead>Store</TableHead>
-                <TableHead className="text-right">Principal</TableHead>
-                <TableHead className="text-right">Receivable</TableHead>
-                <TableHead className="text-right">Daily</TableHead>
-                <TableHead className="text-right">Balance</TableHead>
-                <TableHead>Due Date</TableHead>
+              <TableRow className="text-xs">
+                <DashSortHead col="client_name"      label="Client"      sort={monSort} dir={monDir} onSort={toggleMonSort} />
+                <DashSortHead col="store_name"       label="Store"       sort={monSort} dir={monDir} onSort={toggleMonSort} />
+                <DashSortHead col="principal"        label="Principal"   sort={monSort} dir={monDir} onSort={toggleMonSort} align="right" />
+                <DashSortHead col="total_receivable" label="Receivable"  sort={monSort} dir={monDir} onSort={toggleMonSort} align="right" />
+                <DashSortHead col="daily_payment"    label="Daily"       sort={monSort} dir={monDir} onSort={toggleMonSort} align="right" />
+                <DashSortHead col="current_balance"  label="Balance"     sort={monSort} dir={monDir} onSort={toggleMonSort} align="right" />
+                <DashSortHead col="due_date"         label="Due Date"    sort={monSort} dir={monDir} onSort={toggleMonSort} />
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Collector</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((l) => (
+              {monFiltered.map((l) => (
                 <TableRow key={l.id}>
                   <TableCell className="font-medium">{l.client.name}</TableCell>
                   <TableCell className="text-muted-foreground">{l.client.store_name}</TableCell>
@@ -687,6 +694,94 @@ const riskStyles: Record<RiskVariant, { border: string; bg: string; icon: string
   destructive: { border: "border-destructive/30", bg: "bg-destructive/5",  icon: "bg-destructive/10 text-destructive",    label: "text-destructive" },
   success:     { border: "border-success/30",     bg: "bg-success/5",      icon: "bg-success/10 text-success",            label: "text-success" },
 };
+
+function rankStyle(rank: number): { color: string; bg: string } {
+  if (rank === 1) return { color: "text-yellow-500", bg: "bg-yellow-500/10" };
+  if (rank === 2) return { color: "text-slate-400",  bg: "bg-slate-400/10" };
+  if (rank === 3) return { color: "text-amber-600",  bg: "bg-amber-600/10" };
+  return { color: "text-muted-foreground", bg: "bg-muted/30" };
+}
+
+function LeaderList({
+  ranked, query, getValue, getExpected, emptyMsg,
+}: {
+  ranked: CollectorStat[];
+  query: string;
+  getValue: (c: CollectorStat) => number;
+  getExpected: (c: CollectorStat) => number;
+  emptyMsg: string;
+}) {
+  const q = query.trim().toLowerCase();
+
+  const rows: { collector: CollectorStat; rank: number; highlight: boolean }[] = q
+    ? ranked
+        .map((c, i) => ({ collector: c, rank: i + 1, highlight: c.name.toLowerCase().includes(q) }))
+        .filter((r) => r.highlight)
+    : ranked.slice(0, 5).map((c, i) => ({ collector: c, rank: i + 1, highlight: false }));
+
+  if (ranked.length === 0) {
+    return <p className="text-sm text-muted-foreground text-center py-4">{emptyMsg}</p>;
+  }
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground text-center py-4">No collector matches "{query}".</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.map(({ collector: c, rank, highlight }) => {
+        const { color, bg } = rankStyle(rank);
+        return (
+          <div
+            key={c.id}
+            className={`flex items-center gap-3 rounded-xl px-4 py-3 transition ${highlight ? "ring-2 ring-primary/40 " + bg : bg}`}
+          >
+            <span className={`w-6 shrink-0 text-center text-sm font-bold ${color}`}>#{rank}</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium truncate">{c.name}</p>
+              <p className="text-xs text-muted-foreground">{c.area}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="font-semibold num text-success">{formatPHP(getValue(c), { compact: true })}</p>
+              <p className="text-xs text-muted-foreground">of {formatPHP(getExpected(c), { compact: true })}</p>
+            </div>
+          </div>
+        );
+      })}
+      {!q && ranked.length > 5 && (
+        <p className="text-center text-xs text-muted-foreground pt-1">
+          +{ranked.length - 5} more — search by name to find their position
+        </p>
+      )}
+    </div>
+  );
+}
+
+type MonSort = "client_name" | "store_name" | "principal" | "total_receivable" | "daily_payment" | "current_balance" | "due_date";
+
+function DashSortHead({
+  col, label, sort, dir, onSort, align = "left",
+}: {
+  col: MonSort;
+  label: string;
+  sort: MonSort | null;
+  dir: "asc" | "desc";
+  onSort: (col: MonSort) => void;
+  align?: "left" | "right";
+}) {
+  const active = sort === col;
+  const Icon = active ? (dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead className={align === "right" ? "text-right" : undefined}>
+      <button
+        onClick={() => onSort(col)}
+        className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors hover:text-foreground ${active ? "text-foreground font-semibold" : "text-muted-foreground font-normal"}`}
+      >
+        {label}
+        <Icon className="h-3 w-3 shrink-0" />
+      </button>
+    </TableHead>
+  );
+}
 
 function RiskCard({ label, value, icon: Icon, hint, variant }: {
   label: string; value: number; icon: React.ElementType;
