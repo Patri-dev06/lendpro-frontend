@@ -2,7 +2,7 @@ import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft, MapPin, Users, Target, Wallet,
-  AlertTriangle, AlertOctagon, TrendingUp, Loader2, CalendarDays,
+  AlertTriangle, AlertOctagon, TrendingUp, Loader2, CalendarDays, Gauge,
 } from "lucide-react";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { StatCard } from "@/components/finance/StatCard";
@@ -111,6 +111,12 @@ function CollectorDetail() {
     month: shortMonth(r.month), collected: Number(r.collected),
   }));
 
+  const dailyEff   = effRate(data.collected_today, data.expected_daily);
+  const monthlyEff = effRate(data.collected_month, data.expected_month);
+  function effTone(r: number): "success" | "warning" | "destructive" {
+    return r >= 80 ? "success" : r >= 50 ? "warning" : "destructive";
+  }
+
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ml-2">
@@ -161,15 +167,18 @@ function CollectorDetail() {
         </div>
 
         {/* Stat grid */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 content-start">
-          <StatCard label="Assigned"       value={String(data.assigned)}     icon={Users}         hint="total clients" />
-          <StatCard label="Expected Daily" value={formatPHP(data.expected_daily, { compact: true })} icon={Target}  tone="info"        hint="active loans" />
-          <StatCard label="Collected Today" value={formatPHP(data.collected_today, { compact: true })} icon={Wallet} tone="success"    hint="today" />
-          <StatCard label="This Month"     value={formatPHP(data.collected_month, { compact: true })} icon={TrendingUp} tone="success" hint="collected" />
-          <StatCard label="This Week"      value={formatPHP(data.collected_week, { compact: true })}  icon={CalendarDays} tone="info"  hint="collected" />
-          <StatCard label="This Year"      value={formatPHP(data.collected_year, { compact: true })}  icon={TrendingUp}   tone="success" hint="collected" />
-          <StatCard label="Overdue"        value={String(data.overdue)}     icon={AlertTriangle} tone="warning"     hint="accounts" />
-          <StatCard label="Past Due"       value={String(data.past_due)}    icon={AlertOctagon}  tone="destructive" hint="accounts" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 content-start">
+          <StatCard label="Assigned"          value={String(data.assigned)}                            icon={Users}        hint="total clients" />
+          <StatCard label="Expected Daily"    value={formatPHP(data.expected_daily,  { compact: true })} icon={Target}     tone="info"                    hint="active loans" />
+          <StatCard label="Expected Monthly"  value={formatPHP(data.expected_month,  { compact: true })} icon={Target}     tone="info"                    hint="active loans" />
+          <StatCard label="Daily Efficiency"  value={`${dailyEff}%`}                                   icon={Gauge}        tone={effTone(dailyEff)}        hint="collected vs expected today" />
+          <StatCard label="Monthly Efficiency" value={`${monthlyEff}%`}                                icon={Gauge}        tone={effTone(monthlyEff)}      hint="collected vs expected this month" />
+          <StatCard label="Collected Today"   value={formatPHP(data.collected_today, { compact: true })} icon={Wallet}     tone="success"                 hint="today" />
+          <StatCard label="This Week"         value={formatPHP(data.collected_week,  { compact: true })} icon={CalendarDays} tone="info"                  hint="collected" />
+          <StatCard label="This Month"        value={formatPHP(data.collected_month, { compact: true })} icon={TrendingUp}  tone="success"                hint="collected" />
+          <StatCard label="This Year"         value={formatPHP(data.collected_year,  { compact: true })} icon={TrendingUp}  tone="success"                hint="collected" />
+          <StatCard label="Overdue"           value={String(data.overdue)}                             icon={AlertTriangle} tone="warning"               hint="accounts" />
+          <StatCard label="Past Due"          value={String(data.past_due)}                            icon={AlertOctagon}  tone="destructive"           hint="accounts" />
         </div>
       </div>
 

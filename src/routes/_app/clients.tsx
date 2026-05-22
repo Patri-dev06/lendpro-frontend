@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, Eye, Mail, MailCheck, Loader2, FileText, Pencil } from "lucide-react";
+import { Plus, Search, Eye, Mail, MailCheck, Loader2, FileText, Pencil, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { StatusBadge } from "@/components/finance/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,8 @@ function ClientsPage() {
   const [type, setType] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [collectorFilter, setCollectorFilter] = useState("all");
+  const [sortCol, setSortCol] = useState<"number" | "name" | "store_name" | "created_at" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [addOpen, setAddOpen] = useState(false);
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [emailClient, setEmailClient] = useState<Client | null>(null);
@@ -96,6 +98,19 @@ function ClientsPage() {
     (collectorFilter === "all" || String(c.collector_id) === collectorFilter) &&
     (`${c.name} ${c.store_name} ${c.number}`.toLowerCase().includes(q.toLowerCase()))
   );
+
+  function toggleSort(col: ClientSortCol) {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+  }
+  const sorted = sortCol
+    ? [...filtered].sort((a, b) => {
+        const av = sortCol === "store_name" ? a.store_name : a[sortCol as keyof Client] as string;
+        const bv = sortCol === "store_name" ? b.store_name : b[sortCol as keyof Client] as string;
+        const cmp = String(av ?? "").localeCompare(String(bv ?? ""), undefined, { numeric: sortCol === "number" });
+        return sortDir === "asc" ? cmp : -cmp;
+      })
+    : filtered;
 
   const emailCount = clients.filter((c) => c.email).length;
 
@@ -181,21 +196,21 @@ function ClientsPage() {
           ) : (
             <Table className="min-w-225">
               <TableHeader>
-                <TableRow>
-                  <TableHead>Client #</TableHead>
-                  <TableHead>Name</TableHead>
+                <TableRow className="text-xs">
+                  <ClientSortHead col="number"     label="Client #"    sort={sortCol} dir={sortDir} onSort={toggleSort} />
+                  <ClientSortHead col="name"        label="Name"        sort={sortCol} dir={sortDir} onSort={toggleSort} />
                   <TableHead>Address</TableHead>
-                  <TableHead>Store</TableHead>
+                  <ClientSortHead col="store_name" label="Store"       sort={sortCol} dir={sortDir} onSort={toggleSort} />
                   <TableHead>Phone</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Collector</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Date Joined</TableHead>
+                  <ClientSortHead col="created_at" label="Date Joined" sort={sortCol} dir={sortDir} onSort={toggleSort} />
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((c) => (
+                {sorted.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-mono text-xs text-muted-foreground">{c.number}</TableCell>
                     <TableCell>
@@ -756,6 +771,27 @@ function EmailDialog({ client, onClose }: { client: Client; onClose: () => void 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ---------- ClientSortHead ---------- */
+type ClientSortCol = "number" | "name" | "store_name" | "created_at";
+function ClientSortHead({ col, label, sort, dir, onSort }: {
+  col: ClientSortCol; label: string;
+  sort: ClientSortCol | null; dir: "asc" | "desc";
+  onSort: (col: ClientSortCol) => void;
+}) {
+  const active = sort === col;
+  const Icon = active ? (dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead>
+      <button
+        onClick={() => onSort(col)}
+        className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors hover:text-foreground ${active ? "text-foreground font-semibold" : "text-muted-foreground font-normal"}`}
+      >
+        {label}<Icon className="h-3 w-3 shrink-0" />
+      </button>
+    </TableHead>
   );
 }
 

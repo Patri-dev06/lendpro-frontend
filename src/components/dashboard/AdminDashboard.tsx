@@ -111,6 +111,12 @@ export function AdminDashboard() {
   const [typeFilter, setTypeFilter]           = useState("all");
   const [effPeriod, setEffPeriod]             = useState<EfficiencyPeriod>("this_month");
   const [collectorPeriod, setCollectorPeriod] = useState<CollectorPeriod>("month");
+  const [cpSort, setCpSort] = useState<"expected" | "collected" | "today" | null>(null);
+  const [cpDir,  setCpDir]  = useState<"asc" | "desc">("desc");
+  function toggleCpSort(col: "expected" | "collected" | "today") {
+    if (cpSort === col) setCpDir((d) => (d === "desc" ? "asc" : "desc"));
+    else { setCpSort(col); setCpDir("desc"); }
+  }
   const [leaderQ, setLeaderQ]                 = useState("");
   const [monSort, setMonSort]   = useState<MonSort | null>(null);
   const [monDir,  setMonDir]    = useState<"asc" | "desc">("asc");
@@ -206,6 +212,18 @@ export function AdminDashboard() {
     today: "Today", week: "This Week", month: "This Month", year: "This Year",
   };
 
+  const cpRows = cpSort
+    ? [...stats.collector_stats].sort((a, b) => {
+        const av = cpSort === "expected" ? collectorExpected(a, collectorPeriod)
+                 : cpSort === "collected" ? collectorCollected(a, collectorPeriod)
+                 : a.collected_today;
+        const bv = cpSort === "expected" ? collectorExpected(b, collectorPeriod)
+                 : cpSort === "collected" ? collectorCollected(b, collectorPeriod)
+                 : b.collected_today;
+        return cpDir === "desc" ? bv - av : av - bv;
+      })
+    : stats.collector_stats;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -227,11 +245,12 @@ export function AdminDashboard() {
       {/* ── Section 1a: Portfolio counts ── */}
       <div>
         <SectionLabel>Portfolio Overview</SectionLabel>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <StatCard label="Total Clients"   value={String(counts.total_clients)} icon={UsersRound} hint="registered" />
           <StatCard label="Active Accounts" value={String(counts.active)}        icon={Users}      hint="across all collectors" />
-          <StatCard label="New Loans"       value={String(counts.new)}           icon={UserPlus}   tone="info"   hint="active" />
-          <StatCard label="Reloan"          value={String(counts.renew)}         icon={Repeat}     tone="purple" hint="active" />
+          <StatCard label="New Loans"       value={String(counts.new)}           icon={UserPlus}   tone="info"    hint="active" />
+          <StatCard label="Reloan"          value={String(counts.renew)}         icon={Repeat}     tone="purple"  hint="active" />
+          <StatCard label="Reconstruct"     value={String(counts.reconstruct)}   icon={RefreshCw}  tone="warning" hint="active" />
         </div>
       </div>
 
@@ -305,11 +324,10 @@ export function AdminDashboard() {
       {/* ── Section 1b: Risk & resolution — tinted cards ── */}
       <div>
         <SectionLabel>Risk &amp; Resolution</SectionLabel>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <RiskCard label="Reconstruct" value={counts.reconstruct} icon={RefreshCw}     hint="active accounts"    variant="orange" />
-          <RiskCard label="Overdue"     value={counts.overdue}     icon={AlertTriangle} hint="needs follow-up"    variant="warning" />
-          <RiskCard label="Past Due"    value={counts.past_due}    icon={AlertOctagon}  hint="critical accounts"  variant="destructive" />
-          <RiskCard label="Fully Paid"  value={counts.paid}        icon={CheckCircle2}  hint="all time total"     variant="success" />
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <RiskCard label="Overdue"    value={counts.overdue}   icon={AlertTriangle} hint="needs follow-up"   variant="warning" />
+          <RiskCard label="Past Due"   value={counts.past_due}  icon={AlertOctagon}  hint="critical accounts" variant="destructive" />
+          <RiskCard label="Fully Paid" value={counts.paid}      icon={CheckCircle2}  hint="all time total"    variant="success" />
         </div>
       </div>
 
@@ -504,9 +522,9 @@ export function AdminDashboard() {
                 <TableHead>Collector</TableHead>
                 <TableHead>Area</TableHead>
                 <TableHead className="text-center">Clients</TableHead>
-                <TableHead className="text-right">Expected</TableHead>
-                <TableHead className="text-right">Collected</TableHead>
-                <TableHead className="text-right">Today</TableHead>
+                <CpSortHead col="expected"  label="Expected"  sort={cpSort} dir={cpDir} onSort={toggleCpSort} />
+                <CpSortHead col="collected" label="Collected" sort={cpSort} dir={cpDir} onSort={toggleCpSort} />
+                <CpSortHead col="today"     label="Today"     sort={cpSort} dir={cpDir} onSort={toggleCpSort} />
                 <TableHead className="text-right">This Month</TableHead>
                 <TableHead className="text-right">This Year</TableHead>
                 <TableHead>Rate</TableHead>
@@ -515,7 +533,7 @@ export function AdminDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stats.collector_stats.map((c) => {
+              {cpRows.map((c) => {
                 const collected = collectorCollected(c, collectorPeriod);
                 const expected  = collectorExpected(c, collectorPeriod);
                 const rate      = effRate(collected, expected);
@@ -605,7 +623,76 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* ── Section 7: Client Monitoring ── */}
+      {/* ── Section 7: Collector Performance Summary ── */}
+      <div className="rounded-2xl border bg-card shadow-sm">
+        <div className="border-b px-5 py-4">
+          <h3 className="font-display text-base font-semibold">Collector Performance Summary</h3>
+          <p className="text-xs text-muted-foreground">Clients, collectible, collected, and efficiency per collector</p>
+        </div>
+        <div className="overflow-x-auto">
+          <Table className="min-w-225">
+            <TableHeader>
+              <TableRow className="text-xs">
+                <TableHead rowSpan={2} className="align-middle">Collector</TableHead>
+                <TableHead rowSpan={2} className="align-middle text-right">Clients</TableHead>
+                <TableHead colSpan={3} className="text-center border-l text-info">Daily</TableHead>
+                <TableHead colSpan={3} className="text-center border-l text-purple-500">Weekly</TableHead>
+                <TableHead colSpan={3} className="text-center border-l text-success">Monthly</TableHead>
+              </TableRow>
+              <TableRow className="text-xs">
+                <TableHead className="border-l text-right text-muted-foreground">Collectible</TableHead>
+                <TableHead className="text-right text-muted-foreground">Collected</TableHead>
+                <TableHead className="text-right text-muted-foreground">Eff %</TableHead>
+                <TableHead className="border-l text-right text-muted-foreground">Collectible</TableHead>
+                <TableHead className="text-right text-muted-foreground">Collected</TableHead>
+                <TableHead className="text-right text-muted-foreground">Eff %</TableHead>
+                <TableHead className="border-l text-right text-muted-foreground">Collectible</TableHead>
+                <TableHead className="text-right text-muted-foreground">Collected</TableHead>
+                <TableHead className="text-right text-muted-foreground">Eff %</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stats.collector_stats.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="py-8 text-center text-sm text-muted-foreground">
+                    No collector data available.
+                  </TableCell>
+                </TableRow>
+              ) : stats.collector_stats.map((c) => {
+                const dailyEff   = effRate(c.collected_today, c.expected_daily);
+                const weeklyEff  = effRate(c.collected_week,  c.expected_daily * 6);
+                const monthlyEff = effRate(c.collected_month, c.expected_month);
+                function effColor(r: number) {
+                  return r >= 80 ? "text-success" : r >= 50 ? "text-warning" : "text-destructive";
+                }
+                return (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      <p className="font-medium">{c.name}</p>
+                      <p className="text-xs text-muted-foreground">{c.area}</p>
+                    </TableCell>
+                    <TableCell className="text-right num">{c.assigned}</TableCell>
+                    {/* Daily */}
+                    <TableCell className="border-l text-right num text-sm">{formatPHP(c.expected_daily,       { compact: true })}</TableCell>
+                    <TableCell className="text-right num text-sm">{formatPHP(c.collected_today,              { compact: true })}</TableCell>
+                    <TableCell className={`text-right num font-semibold ${effColor(dailyEff)}`}>{dailyEff}%</TableCell>
+                    {/* Weekly */}
+                    <TableCell className="border-l text-right num text-sm">{formatPHP(c.expected_daily * 6,  { compact: true })}</TableCell>
+                    <TableCell className="text-right num text-sm">{formatPHP(c.collected_week,               { compact: true })}</TableCell>
+                    <TableCell className={`text-right num font-semibold ${effColor(weeklyEff)}`}>{weeklyEff}%</TableCell>
+                    {/* Monthly */}
+                    <TableCell className="border-l text-right num text-sm">{formatPHP(c.expected_month,      { compact: true })}</TableCell>
+                    <TableCell className="text-right num text-sm">{formatPHP(c.collected_month,              { compact: true })}</TableCell>
+                    <TableCell className={`text-right num font-semibold ${effColor(monthlyEff)}`}>{monthlyEff}%</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      {/* ── Section 8: Client Monitoring ── */}
       <div className="rounded-2xl border bg-card shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
           <div>
@@ -753,6 +840,27 @@ function LeaderList({
         </p>
       )}
     </div>
+  );
+}
+
+function CpSortHead({ col, label, sort, dir, onSort }: {
+  col: "expected" | "collected" | "today";
+  label: string;
+  sort: "expected" | "collected" | "today" | null;
+  dir: "asc" | "desc";
+  onSort: (col: "expected" | "collected" | "today") => void;
+}) {
+  const active = sort === col;
+  const Icon = active ? (dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead className="text-right">
+      <button
+        onClick={() => onSort(col)}
+        className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors hover:text-foreground ${active ? "text-foreground font-semibold" : "text-muted-foreground font-normal"}`}
+      >
+        {label}<Icon className="h-3 w-3 shrink-0" />
+      </button>
+    </TableHead>
   );
 }
 
