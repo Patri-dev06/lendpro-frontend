@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 interface ApiClient {
   id: number;
+  number: string;
   name: string;
   store_name: string;
   address: string;
@@ -24,6 +25,7 @@ interface ApiClient {
   email: string | null;
   type: string;
   status: string;
+  collector_id: number | null;
 }
 
 interface ApiCollector {
@@ -59,17 +61,19 @@ export interface ApiLoan {
 interface Props {
   token: string | null;
   onLoanCreated: (loan: ApiLoan) => void;
+  initialClientId?: number;
 }
 
 interface ApiSetting { key: string; value: string | null; }
 
-export function LoanCreateSection({ token, onLoanCreated }: Props) {
+export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Props) {
   const [clients, setClients]     = useState<ApiClient[]>([]);
   const [collectors, setCollectors] = useState<ApiCollector[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Settings-driven defaults
   const [defaultInterestRate, setDefaultInterestRate] = useState(0);
+  const [defaultScRate, setDefaultScRate] = useState(0);
   const [termOptions, setTermOptions] = useState<number[]>([30, 45, 60]);
   const [holidays, setHolidays] = useState<string[]>([]);
 
@@ -100,7 +104,8 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
       // Parse settings
       const smap = Object.fromEntries(settingsRaw.map((s) => [s.key, s.value ?? ""]));
       const rate = parseFloat(smap.default_interest_rate ?? "0") || 0;
-      const defSc = parseFloat(smap.default_service_charge ?? "0") || 0;
+      const scRate = parseFloat(smap.default_service_charge ?? "0") || 0;
+      const defSc = Math.round(10000 * scRate / 100);
       let terms: number[] = [30, 45, 60];
       try {
         const parsed = JSON.parse(smap.loan_term_options ?? "[30,45,60]");
@@ -114,6 +119,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
       } catch { /* keep empty */ }
 
       setDefaultInterestRate(rate);
+      setDefaultScRate(scRate);
       setTermOptions(terms);
       setHolidays(parsedHolidays);
       setSc(defSc);
@@ -128,8 +134,13 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
 
       setClients(cls);
       setCollectors(cols);
-      if (cls.length > 0)  setClientId(cls[0].id);
-      if (cols.length > 0) setCollectorId(cols[0].id);
+      const preselect = initialClientId ? cls.find((c) => c.id === initialClientId) : null;
+      const firstClient = preselect ?? (cls.length > 0 ? cls[0] : null);
+      if (firstClient) {
+        setClientId(firstClient.id);
+        if (firstClient.collector_id) setCollectorId(firstClient.collector_id);
+      }
+      if (!preselect && cols.length > 0) setCollectorId(cols[0].id);
     } catch {
       toast.error("Failed to load clients / collectors.");
     } finally {
@@ -162,8 +173,10 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
   function handlePrincipalChange(p: number) {
     setPrincipal(p);
     const autoInterest = Math.round(p * getTermInterestRate(termDays) / 100);
+    const autoSc = Math.round(p * defaultScRate / 100);
     setInterest(autoInterest);
-    recalcDaily(p, autoInterest, sc, termDays);
+    setSc(autoSc);
+    recalcDaily(p, autoInterest, autoSc, termDays);
     setErrors((e) => ({ ...e, principal: "" }));
   }
 
@@ -213,7 +226,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
       // Reset form — restore setting-based defaults
       const resetPrincipal = 10000;
       const resetInterest  = defaultInterestRate > 0 ? Math.round(resetPrincipal * defaultInterestRate / 100) : 0;
-      const resetSc        = parseFloat(String(sc)) || 0;
+      const resetSc        = Math.round(resetPrincipal * defaultScRate / 100);
       const resetTerm      = termOptions.includes(45) ? 45 : termOptions[0];
       setPrincipal(resetPrincipal);
       setInterest(resetInterest);
@@ -361,7 +374,7 @@ export function LoanCreateSection({ token, onLoanCreated }: Props) {
             </Select>
           </Field>
 
-          <Field label="Processing fee (₱)" error={errors.sc}>
+          <Field label={`Processing fee (₱)${defaultScRate > 0 ? ` — ${defaultScRate}% of principal` : ""}`} error={errors.sc}>
             <Input
               type="number" min={0} value={sc}
               className={errors.sc ? "border-destructive" : ""}

@@ -135,9 +135,9 @@ export function DirectInputTab() {
         <div className="rounded-2xl border bg-card p-6 shadow-sm">
           <h3 className="font-display text-base font-semibold">Payment details</h3>
           <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Borrower">
+            <Field label="Client">
               <Select value={String(selectedLoanId ?? "")} onValueChange={(v) => handleLoanChange(Number(v))}>
-                <SelectTrigger><SelectValue placeholder="Select borrower…" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select client…" /></SelectTrigger>
                 <SelectContent>
                   {loans.map((l) => (
                     <SelectItem key={l.id} value={String(l.id)}>
@@ -212,7 +212,7 @@ export function DirectInputTab() {
       <div className="rounded-2xl border bg-card shadow-sm">
         <div className="border-b px-5 py-4">
           <h3 className="font-display text-base font-semibold">Recent payment history</h3>
-          <p className="text-xs text-muted-foreground">Last collected payments across all borrowers</p>
+          <p className="text-xs text-muted-foreground">Last collected payments across all clients</p>
         </div>
         <div className="overflow-x-auto">
           <Table className="min-w-175">

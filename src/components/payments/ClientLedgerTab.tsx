@@ -140,7 +140,7 @@ ${content}
     <br/><br/>
     <div class="sig-line"></div>
     <div class="sig-name">${ledger.client.name}</div>
-    <div class="sig-role">Signature of Borrower</div>
+    <div class="sig-role">Signature of Client</div>
     <div style="margin-top:4px">Date: _______________</div>
   </div>
   <div class="sig">
@@ -160,7 +160,7 @@ ${content}
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Select Borrower / Loan</Label>
+          <Label className="text-xs">Select Client / Loan</Label>
           {loadingLoans ? (
             <div className="flex h-9 w-72 items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />Loading…
@@ -258,7 +258,7 @@ ${content}
       ) : (
         <div className="flex flex-col items-center justify-center rounded-2xl border bg-card py-16 text-center shadow-sm">
           <BookOpen className="h-10 w-10 text-muted-foreground/40" />
-          <p className="mt-3 text-sm text-muted-foreground">Select a borrower to view their ledger.</p>
+          <p className="mt-3 text-sm text-muted-foreground">Select a client to view their ledger.</p>
         </div>
       )}
     </div>

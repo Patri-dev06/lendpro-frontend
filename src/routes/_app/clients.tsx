@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, Eye, Mail, MailCheck, Loader2, FileText } from "lucide-react";
+import { Plus, Search, Eye, Mail, MailCheck, Loader2, FileText, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { StatusBadge } from "@/components/finance/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ interface Client {
   id: number; number: string; name: string; store_name: string;
   address: string; phone: string; email: string | null;
   type: string; status: string; collector_id: number;
+  latitude: number | null; longitude: number | null;
+  created_at: string;
   collector?: Collector;
 }
 
@@ -64,7 +66,10 @@ function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [collectorFilter, setCollectorFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
+  const [editClient, setEditClient] = useState<Client | null>(null);
   const [emailClient, setEmailClient] = useState<Client | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -87,6 +92,8 @@ function ClientsPage() {
 
   const filtered = clients.filter((c) =>
     (type === "all" || c.type === type) &&
+    (statusFilter === "all" || c.status === statusFilter) &&
+    (collectorFilter === "all" || String(c.collector_id) === collectorFilter) &&
     (`${c.name} ${c.store_name} ${c.number}`.toLowerCase().includes(q.toLowerCase()))
   );
 
@@ -97,7 +104,7 @@ function ClientsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Clients"
-        subtitle="Manage borrower profiles, contact details, and collector assignments."
+        subtitle="Manage client profiles, contact details, and collector assignments."
         actions={
           <div className="flex items-center gap-2">
             {emailCount > 0 && (
@@ -122,14 +129,44 @@ function ClientsPage() {
             <Input value={q} onChange={(e) => setQ(e.target.value)}
               placeholder="Search by name, store, or client number…" className="h-9 pl-8" />
           </div>
-          <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              <SelectItem value="new">New Loaner</SelectItem>
-              <SelectItem value="renew">Renew Loaner</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="w-38">
+            <SearchableCombobox
+              options={[
+                { value: "all", label: "All types" },
+                { value: "new", label: "New Loan" },
+                { value: "renew", label: "Reloan" },
+              ]}
+              value={type}
+              onChange={(v) => setType(v || "all")}
+              placeholder="Type…"
+            />
+          </div>
+          <div className="w-38">
+            <SearchableCombobox
+              options={[
+                { value: "all", label: "All statuses" },
+                { value: "new", label: "New" },
+                { value: "renew", label: "Renew" },
+                { value: "overdue", label: "Overdue" },
+                { value: "past-due", label: "Past Due" },
+                { value: "paid", label: "Paid" },
+              ]}
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v || "all")}
+              placeholder="Status…"
+            />
+          </div>
+          <div className="w-48">
+            <SearchableCombobox
+              options={[
+                { value: "all", label: "All collectors" },
+                ...collectors.map((c) => ({ value: String(c.id), label: c.name, sub: c.area })),
+              ]}
+              value={collectorFilter}
+              onChange={(v) => setCollectorFilter(v || "all")}
+              placeholder="Collector…"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -153,6 +190,7 @@ function ClientsPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Collector</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Date Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -174,6 +212,9 @@ function ClientsPage() {
                     <TableCell><StatusBadge status={c.type} /></TableCell>
                     <TableCell className="text-muted-foreground">{c.collector?.name ?? "—"}</TableCell>
                     <TableCell><StatusBadge status={c.status} /></TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(c.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         {c.email && (
@@ -182,6 +223,9 @@ function ClientsPage() {
                             <Mail className="mr-1 h-3.5 w-3.5" />Email
                           </Button>
                         )}
+                        <Button variant="ghost" size="sm" onClick={() => setEditClient(c)}>
+                          <Pencil className="mr-1 h-3.5 w-3.5" />Edit
+                        </Button>
                         <Button variant="ghost" size="sm" asChild>
                           <Link to="/clients/$clientId" params={{ clientId: String(c.id) }}>
                             <Eye className="mr-1 h-3.5 w-3.5" />View
@@ -212,6 +256,19 @@ function ClientsPage() {
         />
       </Dialog>
 
+      {/* Edit client dialog */}
+      {editClient && (
+        <Dialog open onOpenChange={(open) => { if (!open) setEditClient(null); }}>
+          <EditClientDialog
+            client={editClient}
+            collectors={collectors}
+            token={token ?? undefined}
+            onSaved={() => { setEditClient(null); fetchData(); }}
+            onCancel={() => setEditClient(null)}
+          />
+        </Dialog>
+      )}
+
       {/* Email dialog */}
       {emailClient && (
         <EmailDialog client={emailClient} onClose={() => setEmailClient(null)} />
@@ -241,6 +298,8 @@ function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onC
   const [city, setCity]               = useState("");
   const [type, setType]           = useState("new");
   const [collectorId, setCollectorId] = useState(collectors[0]?.id?.toString() ?? "");
+  const [latitude, setLatitude]   = useState("");
+  const [longitude, setLongitude] = useState("");
   const [loading, setLoading]     = useState(false);
   const [errors, setErrors]       = useState<Record<string, string>>({});
 
@@ -256,6 +315,10 @@ function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onC
     if (!collectorId)      e.collectorId = "Please assign a collector.";
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
                            e.email       = "Invalid email address.";
+    if (latitude && (isNaN(Number(latitude)) || Number(latitude) < -90 || Number(latitude) > 90))
+                           e.latitude    = "Must be between -90 and 90.";
+    if (longitude && (isNaN(Number(longitude)) || Number(longitude) < -180 || Number(longitude) > 180))
+                           e.longitude   = "Must be between -180 and 180.";
     return e;
   }
 
@@ -281,6 +344,8 @@ function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onC
           address:      fullAddress,
           type,
           collector_id: Number(collectorId),
+          latitude:     latitude ? Number(latitude) : null,
+          longitude:    longitude ? Number(longitude) : null,
         },
       });
       toast.success("Client saved!", { description: `${name.trim()} has been added successfully.` });
@@ -367,8 +432,8 @@ function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onC
           <Select value={type} onValueChange={setType} disabled={loading}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="new">New Loaner</SelectItem>
-              <SelectItem value="renew">Renew Loaner</SelectItem>
+              <SelectItem value="new">New Loan</SelectItem>
+              <SelectItem value="renew">Reloan</SelectItem>
             </SelectContent>
           </Select>
         </Field>
@@ -387,6 +452,20 @@ function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onC
           </Select>
         </Field>
 
+        <Field label="Latitude (optional)" error={errors.latitude}>
+          <Input type="number" step="any" value={latitude}
+            onChange={(e) => { setLatitude(e.target.value); setErrors((p) => ({ ...p, latitude: "" })); }}
+            placeholder="e.g. 14.5995" disabled={loading}
+            className={errors.latitude ? "border-destructive" : ""} />
+        </Field>
+
+        <Field label="Longitude (optional)" error={errors.longitude}>
+          <Input type="number" step="any" value={longitude}
+            onChange={(e) => { setLongitude(e.target.value); setErrors((p) => ({ ...p, longitude: "" })); }}
+            placeholder="e.g. 120.9842" disabled={loading}
+            className={errors.longitude ? "border-destructive" : ""} />
+        </Field>
+
       </div>
       <DialogFooter className="flex-col gap-2 sm:flex-row">
         <Button variant="outline" onClick={onCancel} disabled={loading} className="sm:mr-auto">Cancel</Button>
@@ -397,6 +476,227 @@ function AddClientDialog({ collectors, token, onSaved, onSavedAndCreateLoan, onC
         <Button className="bg-primary text-primary-foreground hover:bg-primary-glow" onClick={() => submit(true)} disabled={loading}>
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
           Save & Create Loan
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+/* ---------- Edit Client Dialog ---------- */
+interface EditClientDialogProps {
+  client: Client;
+  collectors: Collector[];
+  token?: string;
+  onSaved: () => void;
+  onCancel: () => void;
+}
+
+function parseAddress(addr: string) {
+  const parts = addr.split(", ").map((s) => s.trim()).filter(Boolean);
+  if (parts.length >= 3) {
+    const maybeProvince = parts[parts.length - 1];
+    const maybeCity     = parts[parts.length - 2];
+    if (PH_PROVINCES.includes(maybeProvince) && (PH_CITIES[maybeProvince] ?? []).includes(maybeCity)) {
+      const rest = parts.slice(0, parts.length - 2);
+      return { street: rest[0] ?? "", subdivision: rest.slice(1).join(", "), city: maybeCity, province: maybeProvince };
+    }
+  }
+  return { street: addr, subdivision: "", city: "", province: "" };
+}
+
+function EditClientDialog({ client, collectors, token, onSaved, onCancel }: EditClientDialogProps) {
+  const parsed = parseAddress(client.address);
+  const [name, setName]           = useState(client.name);
+  const [phone, setPhone]         = useState(client.phone.replace(/^\+?63/, "").replace(/^0/, ""));
+  const [storeName, setStoreName] = useState(client.store_name);
+  const [email, setEmail]         = useState(client.email ?? "");
+  const [street, setStreet]           = useState(parsed.street);
+  const [subdivision, setSubdivision] = useState(parsed.subdivision);
+  const [province, setProvince]       = useState(parsed.province);
+  const [city, setCity]               = useState(parsed.city);
+  const [type, setType]           = useState(client.type);
+  const [status, setStatus]       = useState(client.status);
+  const [collectorId, setCollectorId] = useState(String(client.collector_id));
+  const [latitude, setLatitude]   = useState(client.latitude != null ? String(client.latitude) : "");
+  const [longitude, setLongitude] = useState(client.longitude != null ? String(client.longitude) : "");
+  const [loading, setLoading]     = useState(false);
+  const [errors, setErrors]       = useState<Record<string, string>>({});
+
+  function validate() {
+    const e: Record<string, string> = {};
+    if (!name.trim())      e.name      = "Client name is required.";
+    if (!phone.trim())     e.phone     = "Cellphone number is required.";
+    else if (phone.replace(/\D/g, "").length !== 10) e.phone = "Enter 10 digits after +63.";
+    if (!storeName.trim()) e.storeName = "Store name is required.";
+    if (!street.trim())    e.street    = "Street is required.";
+    if (!province)         e.province  = "Province is required.";
+    if (!city)             e.city      = "City / Municipality is required.";
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+                           e.email     = "Invalid email address.";
+    if (latitude && (isNaN(Number(latitude)) || Number(latitude) < -90 || Number(latitude) > 90))
+                           e.latitude  = "Must be between -90 and 90.";
+    if (longitude && (isNaN(Number(longitude)) || Number(longitude) < -180 || Number(longitude) > 180))
+                           e.longitude = "Must be between -180 and 180.";
+    return e;
+  }
+
+  async function handleSave() {
+    const e = validate();
+    if (Object.keys(e).length > 0) { setErrors(e); return; }
+
+    const localPhone  = "0" + phone.replace(/\D/g, "");
+    const fullAddress = [street.trim(), subdivision.trim(), city, province].filter(Boolean).join(", ");
+
+    setLoading(true);
+    try {
+      await apiRequest("PATCH", `clients/${client.id}`, {
+        token,
+        body: {
+          name:         name.trim(),
+          phone:        localPhone,
+          store_name:   storeName.trim(),
+          email:        email.trim() || null,
+          address:      fullAddress,
+          type,
+          status,
+          collector_id: Number(collectorId),
+          latitude:     latitude ? Number(latitude) : null,
+          longitude:    longitude ? Number(longitude) : null,
+        },
+      });
+      toast.success("Client updated!", { description: `${name.trim()} has been updated.` });
+      onSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update client.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <DialogContent className="max-w-2xl">
+      <DialogHeader><DialogTitle>Edit client — {client.number}</DialogTitle></DialogHeader>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+        <Field label="Client name" error={errors.name}>
+          <Input value={name} onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: "" })); }}
+            placeholder="Juan Dela Cruz" disabled={loading} className={errors.name ? "border-destructive" : ""} />
+        </Field>
+
+        <Field label="Cellphone number" error={errors.phone}>
+          <div className={`flex h-9 w-full overflow-hidden rounded-md border bg-background text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${errors.phone ? "border-destructive" : "border-input"}`}>
+            <span className="flex items-center border-r bg-muted px-3 text-muted-foreground select-none">+63</span>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => { setPhone(e.target.value.replace(/[^\d\s]/g, "")); setErrors((p) => ({ ...p, phone: "" })); }}
+              placeholder="917 000 0000"
+              disabled={loading}
+              className="flex-1 bg-transparent px-3 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+        </Field>
+
+        <Field label="Store / Business name" error={errors.storeName}>
+          <Input value={storeName} onChange={(e) => { setStoreName(e.target.value); setErrors((p) => ({ ...p, storeName: "" })); }}
+            placeholder="Juan Sari-Sari Store" disabled={loading} className={errors.storeName ? "border-destructive" : ""} />
+        </Field>
+
+        <Field label="Email address (optional)" error={errors.email}>
+          <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }}
+            placeholder="client@email.com" disabled={loading} className={errors.email ? "border-destructive" : ""} />
+        </Field>
+
+        <Field label="Street / Barangay" full error={errors.street}>
+          <Input value={street} onChange={(e) => { setStreet(e.target.value); setErrors((p) => ({ ...p, street: "" })); }}
+            placeholder="e.g. 123 Rizal St., Brgy. San Jose" disabled={loading}
+            className={errors.street ? "border-destructive" : ""} />
+        </Field>
+
+        <Field label="Subdivision (optional)" full>
+          <Input value={subdivision} onChange={(e) => setSubdivision(e.target.value)}
+            placeholder="e.g. Greenville Subdivision" disabled={loading} />
+        </Field>
+
+        <Field label="Province" error={errors.province}>
+          <SearchableCombobox
+            options={PH_PROVINCES.map((p) => ({ value: p, label: p }))}
+            value={province}
+            onChange={(v) => { setProvince(v); setCity(""); setErrors((p) => ({ ...p, province: "" })); }}
+            placeholder="Search province…"
+            error={!!errors.province}
+            disabled={loading}
+          />
+        </Field>
+
+        <Field label="City / Municipality" error={errors.city}>
+          <SearchableCombobox
+            options={(PH_CITIES[province] ?? []).map((c) => ({ value: c, label: c }))}
+            value={city}
+            onChange={(v) => { setCity(v); setErrors((p) => ({ ...p, city: "" })); }}
+            placeholder={province ? "Search city…" : "Select province first"}
+            error={!!errors.city}
+            disabled={loading || !province}
+          />
+        </Field>
+
+        <Field label="Client type">
+          <Select value={type} onValueChange={setType} disabled={loading}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="new">New Loan</SelectItem>
+              <SelectItem value="renew">Reloan</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="Status">
+          <Select value={status} onValueChange={setStatus} disabled={loading}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="new">New</SelectItem>
+              <SelectItem value="renew">Renew</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+              <SelectItem value="past-due">Past Due</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="Assigned collector">
+          <Select value={collectorId} onValueChange={setCollectorId} disabled={loading}>
+            <SelectTrigger><SelectValue placeholder="Select collector" /></SelectTrigger>
+            <SelectContent>
+              {collectors.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.name}
+                  <span className="ml-1.5 text-xs text-muted-foreground">— {c.area}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="Latitude (optional)" error={errors.latitude}>
+          <Input type="number" step="any" value={latitude}
+            onChange={(e) => { setLatitude(e.target.value); setErrors((p) => ({ ...p, latitude: "" })); }}
+            placeholder="e.g. 14.5995" disabled={loading}
+            className={errors.latitude ? "border-destructive" : ""} />
+        </Field>
+
+        <Field label="Longitude (optional)" error={errors.longitude}>
+          <Input type="number" step="any" value={longitude}
+            onChange={(e) => { setLongitude(e.target.value); setErrors((p) => ({ ...p, longitude: "" })); }}
+            placeholder="e.g. 120.9842" disabled={loading}
+            className={errors.longitude ? "border-destructive" : ""} />
+        </Field>
+
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel} disabled={loading} className="mr-auto">Cancel</Button>
+        <Button className="bg-primary text-primary-foreground hover:bg-primary-glow" onClick={handleSave} disabled={loading}>
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Save changes
         </Button>
       </DialogFooter>
     </DialogContent>

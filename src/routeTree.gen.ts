@@ -21,6 +21,7 @@ import { Route as AppLoansRouteImport } from './routes/_app/loans'
 import { Route as AppCollectorsRouteImport } from './routes/_app/collectors'
 import { Route as AppClientsRouteImport } from './routes/_app/clients'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
+import { Route as AppCollectorsIndexRouteImport } from './routes/_app/collectors.index'
 import { Route as AppCollectorsIdRouteImport } from './routes/_app/collectors.$id'
 import { Route as AppClientsClientIdRouteImport } from './routes/_app/clients.$clientId'
 
@@ -83,6 +84,11 @@ const AppAuditRoute = AppAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => AppRoute,
 } as any)
+const AppCollectorsIndexRoute = AppCollectorsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppCollectorsRoute,
+} as any)
 const AppCollectorsIdRoute = AppCollectorsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -108,12 +114,12 @@ export interface FileRoutesByFullPath {
   '/users': typeof AppUsersRoute
   '/clients/$clientId': typeof AppClientsClientIdRoute
   '/collectors/$id': typeof AppCollectorsIdRoute
+  '/collectors/': typeof AppCollectorsIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/audit': typeof AppAuditRoute
   '/clients': typeof AppClientsRouteWithChildren
-  '/collectors': typeof AppCollectorsRouteWithChildren
   '/loans': typeof AppLoansRoute
   '/payments': typeof AppPaymentsRoute
   '/reports': typeof AppReportsRoute
@@ -123,6 +129,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/clients/$clientId': typeof AppClientsClientIdRoute
   '/collectors/$id': typeof AppCollectorsIdRoute
+  '/collectors': typeof AppCollectorsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -140,6 +147,7 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/clients/$clientId': typeof AppClientsClientIdRoute
   '/_app/collectors/$id': typeof AppCollectorsIdRoute
+  '/_app/collectors/': typeof AppCollectorsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,12 +165,12 @@ export interface FileRouteTypes {
     | '/users'
     | '/clients/$clientId'
     | '/collectors/$id'
+    | '/collectors/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/audit'
     | '/clients'
-    | '/collectors'
     | '/loans'
     | '/payments'
     | '/reports'
@@ -172,6 +180,7 @@ export interface FileRouteTypes {
     | '/'
     | '/clients/$clientId'
     | '/collectors/$id'
+    | '/collectors'
   id:
     | '__root__'
     | '/_app'
@@ -188,6 +197,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/clients/$clientId'
     | '/_app/collectors/$id'
+    | '/_app/collectors/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -281,6 +291,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuditRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/collectors/': {
+      id: '/_app/collectors/'
+      path: '/'
+      fullPath: '/collectors/'
+      preLoaderRoute: typeof AppCollectorsIndexRouteImport
+      parentRoute: typeof AppCollectorsRoute
+    }
     '/_app/collectors/$id': {
       id: '/_app/collectors/$id'
       path: '/$id'
@@ -312,10 +329,12 @@ const AppClientsRouteWithChildren = AppClientsRoute._addFileChildren(
 
 interface AppCollectorsRouteChildren {
   AppCollectorsIdRoute: typeof AppCollectorsIdRoute
+  AppCollectorsIndexRoute: typeof AppCollectorsIndexRoute
 }
 
 const AppCollectorsRouteChildren: AppCollectorsRouteChildren = {
   AppCollectorsIdRoute: AppCollectorsIdRoute,
+  AppCollectorsIndexRoute: AppCollectorsIndexRoute,
 }
 
 const AppCollectorsRouteWithChildren = AppCollectorsRoute._addFileChildren(

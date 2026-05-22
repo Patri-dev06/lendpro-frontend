@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, FileSpreadsheet, FileText, Loader2, Printer, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ function ReportsPage() {
   const [rows, setRows]       = useState<unknown[]>([]);
   const [summary, setSummary] = useState({ expected: 0, collected: 0, balance: 0, count: 0 });
   const [loading, setLoading] = useState(false);
+  const fetchSeq = useRef(0);
 
   const fetchCollectors = useCallback(async () => {
     if (!token) return;
@@ -71,18 +72,22 @@ function ReportsPage() {
 
   const fetchReport = useCallback(async () => {
     if (!token) return;
+    const seq = ++fetchSeq.current;
     setLoading(true);
     setRows([]);
     setSummary({ expected: 0, collected: 0, balance: 0, count: 0 });
     try {
+      let nextRows: unknown[] = [];
+      let nextSummary = { expected: 0, collected: 0, balance: 0, count: 0 };
+
       if (active === "daily-collection") {
         const params = new URLSearchParams();
         if (fromDate) params.set("date", fromDate);
         if (collectorId !== "all") params.set("collector_id", collectorId);
         const data = await apiRequest<unknown[]>("GET", `payments?${params}`, { token });
-        setRows(data);
         const arr = data as Array<{ amount: number; new_balance: number }>;
-        setSummary({ expected: 0, collected: arr.reduce((s, p) => s + p.amount, 0), balance: 0, count: arr.length });
+        nextRows = data;
+        nextSummary = { expected: 0, collected: arr.reduce((s, p) => s + p.amount, 0), balance: 0, count: arr.length };
 
       } else if (active === "active-loans" || active === "overdue" || active === "past-due" || active === "paid-loans") {
         const statusMap: Record<string, string> = {
@@ -95,36 +100,41 @@ function ReportsPage() {
         const data = await apiRequest<unknown[]>("GET", `loans?${params}`, { token });
         const loans = data as Array<{ status: string; daily_payment: number; current_balance: number; total_receivable: number }>;
         const filtered = active === "active-loans" ? loans.filter((l) => l.status !== "paid") : loans;
-        setRows(filtered);
-        setSummary({
+        nextRows = filtered;
+        nextSummary = {
           expected:  filtered.reduce((s, l) => s + l.daily_payment, 0),
           collected: filtered.reduce((s, l) => s + (l.total_receivable - l.current_balance), 0),
           balance:   filtered.reduce((s, l) => s + l.current_balance, 0),
           count:     filtered.length,
-        });
+        };
 
       } else if (active === "collector-performance") {
         const data = await apiRequest<{ collectors: unknown[] }>("GET", `reports/collector-summary?month=${month}`, { token });
-        setRows(data.collectors);
         const arr = data.collectors as Array<{ expected: number; collected: number }>;
-        setSummary({ expected: arr.reduce((s, c) => s + c.expected, 0), collected: arr.reduce((s, c) => s + c.collected, 0), balance: 0, count: arr.length });
+        nextRows = data.collectors;
+        nextSummary = { expected: arr.reduce((s, c) => s + c.expected, 0), collected: arr.reduce((s, c) => s + c.collected, 0), balance: 0, count: arr.length };
 
       } else if (active === "monthly-collection") {
         const data = await apiRequest<unknown[]>("GET", "reports/monthly-collection", { token });
-        setRows(data);
         const arr = data as Array<{ collected: number; transactions: number }>;
-        setSummary({ expected: 0, collected: arr.reduce((s, r) => s + Number(r.collected), 0), balance: 0, count: arr.reduce((s, r) => s + r.transactions, 0) });
+        nextRows = data;
+        nextSummary = { expected: 0, collected: arr.reduce((s, r) => s + Number(r.collected), 0), balance: 0, count: arr.reduce((s, r) => s + r.transactions, 0) };
 
       } else if (active === "monthly-releases") {
         const data = await apiRequest<unknown[]>("GET", "reports/monthly-releases", { token });
-        setRows(data);
         const arr = data as Array<{ releases: number; count: number }>;
-        setSummary({ expected: 0, collected: arr.reduce((s, r) => s + Number(r.releases), 0), balance: 0, count: arr.reduce((s, r) => s + r.count, 0) });
+        nextRows = data;
+        nextSummary = { expected: 0, collected: arr.reduce((s, r) => s + Number(r.releases), 0), balance: 0, count: arr.reduce((s, r) => s + r.count, 0) };
       }
+
+      if (seq !== fetchSeq.current) return;
+      setRows(nextRows);
+      setSummary(nextSummary);
     } catch (err) {
+      if (seq !== fetchSeq.current) return;
       toast.error(err instanceof Error ? err.message : "Failed to load report.");
     } finally {
-      setLoading(false);
+      if (seq === fetchSeq.current) setLoading(false);
     }
   }, [token, active, fromDate, toDate, month, collectorId]);
 
@@ -152,17 +162,24 @@ function ReportsPage() {
 
       {/* Category cards */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {CATEGORIES.map((c) => (
-          <button key={c.id} onClick={() => setActive(c.id)}
-            className={cn(
-              "rounded-2xl border bg-card p-4 text-left text-sm shadow-sm transition hover:border-primary-glow/40 hover:shadow-md",
-              active === c.id && "border-primary-glow/60 ring-2 ring-primary-glow/20"
-            )}>
-            <FileText className="h-5 w-5 text-primary-glow" />
-            <p className="mt-2 font-medium leading-tight">{c.label}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Tap to preview</p>
-          </button>
-        ))}
+        {CATEGORIES.map((c) => {
+          const isActive = active === c.id;
+          return (
+            <button key={c.id} onClick={() => { setRows([]); setSummary({ expected: 0, collected: 0, balance: 0, count: 0 }); setLoading(true); setActive(c.id); }}
+              className={cn(
+                "rounded-2xl border p-4 text-left text-sm shadow-sm transition-all duration-150 cursor-pointer select-none",
+                isActive
+                  ? "bg-primary border-primary text-primary-foreground shadow-md"
+                  : "bg-card hover:bg-muted/60 hover:-translate-y-px hover:shadow-md"
+              )}>
+              <FileText className={cn("h-5 w-5", isActive ? "text-primary-foreground/80" : "text-primary")} />
+              <p className="mt-2 font-medium leading-tight">{c.label}</p>
+              <p className={cn("mt-1 text-xs", isActive ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                Tap to preview
+              </p>
+            </button>
+          );
+        })}
       </div>
 
       <div className="rounded-2xl border bg-card shadow-sm">
@@ -280,8 +297,8 @@ function ReportTable({ category, rows }: { category: Category; rows: unknown[] }
           {data.map((p) => (
             <TableRow key={p.id}>
               <TableCell>{formatDate(p.payment_date)}</TableCell>
-              <TableCell className="font-medium">{p.client.name}</TableCell>
-              <TableCell>{p.collector.name}</TableCell>
+              <TableCell className="font-medium">{p.client?.name ?? "—"}</TableCell>
+              <TableCell>{p.collector?.name ?? "—"}</TableCell>
               <TableCell className="text-right num font-medium">{formatPHP(p.amount)}</TableCell>
               <TableCell className="text-right num">{formatPHP(p.new_balance)}</TableCell>
               <TableCell className="text-xs text-muted-foreground">{p.remarks ?? "—"}</TableCell>
@@ -310,8 +327,8 @@ function ReportTable({ category, rows }: { category: Category; rows: unknown[] }
           {data.map((l) => (
             <TableRow key={l.id}>
               <TableCell className="font-mono text-xs">{l.number}</TableCell>
-              <TableCell className="font-medium">{l.client.name}</TableCell>
-              <TableCell>{l.collector.name}</TableCell>
+              <TableCell className="font-medium">{l.client?.name ?? "—"}</TableCell>
+              <TableCell>{l.collector?.name ?? "—"}</TableCell>
               <TableCell className="text-right num">{formatPHP(l.principal)}</TableCell>
               <TableCell className="text-right num">{formatPHP(l.total_receivable)}</TableCell>
               <TableCell className="text-right num">{formatPHP(l.current_balance)}</TableCell>

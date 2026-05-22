@@ -91,7 +91,7 @@ export function CollectorDashboard() {
       <div className="rounded-2xl border bg-card shadow-sm">
         <div className="border-b px-5 py-4">
           <h3 className="font-display text-base font-semibold">Active loan portfolio</h3>
-          <p className="text-xs text-muted-foreground">All active borrowers and current balances</p>
+          <p className="text-xs text-muted-foreground">All active clients and current balances</p>
         </div>
         <div className="overflow-x-auto">
           <Table className="min-w-175">

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Users, UserPlus, Repeat, AlertTriangle, AlertOctagon, CheckCircle2,
-  Wallet, TrendingUp, ArrowUpRight, Loader2,
+  Wallet, TrendingUp, ArrowUpRight, Loader2, UsersRound, Gauge,
+  RefreshCw, Trophy, Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
 import { StatCard } from "@/components/finance/StatCard";
@@ -18,7 +20,7 @@ import { FinStat } from "@/components/dashboard/FinStat";
 import { BankBalanceCard } from "@/components/dashboard/BankBalanceCard";
 import { apiRequest } from "@/lib/api";
 import { useRole } from "@/lib/role-context";
-import { formatPHP } from "@/lib/format";
+import { formatPHP, formatDate } from "@/lib/format";
 import { tokenColors, tooltipStyle } from "@/components/dashboard/dashboardConstants";
 
 interface ApiLoan {
@@ -30,32 +32,85 @@ interface ApiLoan {
   total_receivable: number;
   daily_payment: number;
   current_balance: number;
+  due_date: string;
   client: { id: number; name: string; store_name: string };
   collector: { id: number; name: string };
 }
 
+interface CollectorStat {
+  id: number; name: string; code: string; area: string;
+  assigned: number;
+  expected_daily: number; expected_month: number;
+  collected_today: number; collected_week: number;
+  collected_month: number; collected_year: number;
+  overdue: number; past_due: number;
+}
+
+interface MonthlyReleaseByType {
+  month: string;
+  new_count: string; reloan_count: string; reconstruct_count: string; total_count: string;
+}
+
 interface DashboardStats {
-  counts: { active: number; new: number; renew: number; overdue: number; past_due: number; paid: number };
-  financials: { total_receivable: number; total_outstanding: number; total_collected: number; collection_efficiency: number };
+  counts: {
+    active: number; new: number; renew: number; reconstruct: number;
+    overdue: number; past_due: number; paid: number; total_clients: number;
+  };
+  financials: {
+    total_receivable: number; total_outstanding: number;
+    total_collected: number; collection_efficiency: number;
+    overdue_balance: number; past_due_balance: number;
+    expected_daily: number;
+    collected_today: number; collected_this_week: number;
+    collected_this_month: number; collected_this_year: number;
+  };
   monthly_releases: Array<{ month: string; releases: string }>;
   monthly_collection: Array<{ month: string; collected: string }>;
-  collector_stats: Array<{ id: number; name: string }>;
+  monthly_releases_by_type: MonthlyReleaseByType[];
+  collector_stats: CollectorStat[];
   loans: ApiLoan[];
 }
+
+type EfficiencyPeriod = "daily" | "weekly" | "this_month" | "this_year";
+type CollectorPeriod  = "today" | "week" | "month" | "year";
 
 function shortMonth(ym: string): string {
   const [y, m] = ym.split("-");
   return new Date(Number(y), Number(m) - 1).toLocaleString("en-US", { month: "short" });
 }
 
+function effRate(collected: number, expected: number): number {
+  if (expected <= 0) return 0;
+  return Math.min(100, Math.round((collected / expected) * 100));
+}
+
+function collectorCollected(c: CollectorStat, p: CollectorPeriod): number {
+  if (p === "today") return c.collected_today;
+  if (p === "week")  return c.collected_week;
+  if (p === "month") return c.collected_month;
+  return c.collected_year;
+}
+
+function collectorExpected(c: CollectorStat, p: CollectorPeriod): number {
+  if (p === "today") return c.expected_daily;
+  if (p === "week")  return c.expected_daily * 6;
+  if (p === "month") return c.expected_month;
+  return c.expected_month * 12;
+}
+
+const RANK_COLORS = ["text-yellow-500", "text-slate-400", "text-amber-600", "text-muted-foreground", "text-muted-foreground"];
+const RANK_BG     = ["bg-yellow-500/10", "bg-slate-400/10", "bg-amber-600/10", "bg-muted/30", "bg-muted/30"];
+
 export function AdminDashboard() {
   const { token } = useRole();
   const [stats, setStats]   = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch]  = useState("");
-  const [statusFilter, setStatusFilter]    = useState("all");
+  const [search, setSearch]   = useState("");
+  const [statusFilter, setStatusFilter]       = useState("all");
   const [collectorFilter, setCollectorFilter] = useState("all");
-  const [typeFilter, setTypeFilter]        = useState("all");
+  const [typeFilter, setTypeFilter]           = useState("all");
+  const [effPeriod, setEffPeriod]             = useState<EfficiencyPeriod>("this_month");
+  const [collectorPeriod, setCollectorPeriod] = useState<CollectorPeriod>("month");
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -80,21 +135,21 @@ export function AdminDashboard() {
   const { counts, financials } = stats;
 
   const monthlyReleases = stats.monthly_releases.map((r) => ({
-    month: shortMonth(r.month),
-    releases: Number(r.releases),
+    month: shortMonth(r.month), releases: Number(r.releases),
+  }));
+  const monthlyCollection = stats.monthly_collection.map((r) => ({
+    month: shortMonth(r.month), collected: Number(r.collected),
   }));
 
-  const monthlyCollection = stats.monthly_collection.map((r) => ({
-    month: shortMonth(r.month),
-    collected: Number(r.collected),
-  }));
+  const currentMonthStr = new Date().toISOString().slice(0, 7);
+  const thisMonthByType = stats.monthly_releases_by_type.find((r) => r.month === currentMonthStr);
 
   const normalActive = counts.active - counts.overdue - counts.past_due;
   const donut = [
-    { name: "Active", value: Math.max(0, normalActive), color: tokenColors.primary },
-    { name: "Overdue", value: counts.overdue, color: tokenColors.warning },
-    { name: "Past Due", value: counts.past_due, color: tokenColors.destructive },
-    { name: "Fully Paid", value: counts.paid, color: tokenColors.success },
+    { name: "Active",     value: Math.max(0, normalActive), color: tokenColors.primary },
+    { name: "Overdue",    value: counts.overdue,            color: tokenColors.warning },
+    { name: "Past Due",   value: counts.past_due,           color: tokenColors.destructive },
+    { name: "Fully Paid", value: counts.paid,               color: tokenColors.success },
   ];
 
   const collectors = Array.from(
@@ -107,25 +162,40 @@ export function AdminDashboard() {
     if (typeFilter !== "all" && l.loan_type !== typeFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      const matches = `${l.client.name} ${l.client.store_name}`.toLowerCase().includes(q);
-      if (!matches) return false;
+      if (!`${l.client.name} ${l.client.store_name}`.toLowerCase().includes(q)) return false;
     }
     return true;
   });
 
-  const releasesThisMonth  = monthlyReleases[monthlyReleases.length - 1]?.releases ?? 0;
-  const releasesThisYear   = monthlyReleases.reduce((s, m) => s + m.releases, 0);
-  const collectionThisMonth = monthlyCollection[monthlyCollection.length - 1]?.collected ?? 0;
-  const collectionThisYear  = monthlyCollection.reduce((s, m) => s + m.collected, 0);
+  const releasesThisMonth = monthlyReleases[monthlyReleases.length - 1]?.releases ?? 0;
+  const releasesThisYear  = monthlyReleases.reduce((s, m) => s + m.releases, 0);
+  const ytdExpected = financials.expected_daily * 26 * 12;
+  const ytdRate     = effRate(financials.collected_this_year, ytdExpected);
+
+  const effMap: Record<EfficiencyPeriod, { collected: number; expected: number; label: string }> = {
+    daily:      { collected: financials.collected_today,      expected: financials.expected_daily,           label: "Today" },
+    weekly:     { collected: financials.collected_this_week,  expected: financials.expected_daily * 6,       label: "This Week" },
+    this_month: { collected: financials.collected_this_month, expected: financials.expected_daily * 26,      label: "This Month" },
+    this_year:  { collected: financials.collected_this_year,  expected: financials.expected_daily * 26 * 12, label: "This Year" },
+  };
+  const eff    = effMap[effPeriod];
+  const effPct = effRate(eff.collected, eff.expected);
+
+  const dailyLeaders   = [...stats.collector_stats].sort((a, b) => b.collected_today - a.collected_today).slice(0, 5);
+  const monthlyLeaders = [...stats.collector_stats].sort((a, b) => b.collected_month - a.collected_month).slice(0, 5);
+
+  const collectorPeriodLabel: Record<CollectorPeriod, string> = {
+    today: "Today", week: "This Week", month: "This Month", year: "This Year",
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Operations Dashboard"
-        subtitle="Daily snapshot of the loan portfolio and active borrower accounts."
+        subtitle="Daily snapshot of the loan portfolio and active client accounts."
         actions={
           <Button asChild className="bg-primary text-primary-foreground hover:bg-primary-glow">
-            <Link to="/loans">Create new loan</Link>
+            <Link to="/loans" search={{ clientId: undefined }}>Create new loan</Link>
           </Button>
         }
       />
@@ -136,27 +206,216 @@ export function AdminDashboard() {
         receivable={financials.total_receivable}
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-        <StatCard label="Active Borrowers"   value={String(counts.active)}   icon={Users}        hint="across all collectors" />
-        <StatCard label="New Loaners"        value={String(counts.new)}      icon={UserPlus}     tone="info" hint="this cycle" />
-        <StatCard label="Renew Loaners"      value={String(counts.renew)}    icon={Repeat}       tone="purple" hint="returning clients" />
-        <StatCard label="Overdue +3 Days"    value={String(counts.overdue)}  icon={AlertTriangle} tone="warning" hint="needs follow-up" />
-        <StatCard label="Past Due +30 Days"  value={String(counts.past_due)} icon={AlertOctagon}  tone="destructive" hint="critical accounts" />
-        <StatCard label="Fully Paid"         value={String(counts.paid)}     icon={CheckCircle2} tone="success" hint="all time" />
-        <StatCard label="Outstanding" value={formatPHP(financials.total_outstanding, { compact: true })} icon={Wallet} hint="portfolio balance" />
-      </div>
-
-      <div className="rounded-2xl border bg-card p-5 shadow-sm">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Financial Summary</p>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <FinStat label="Releases This Month" value={formatPHP(releasesThisMonth, { compact: true })} icon={ArrowUpRight} tone="info" />
-          <FinStat label="Releases This Year"  value={formatPHP(releasesThisYear, { compact: true })}  icon={ArrowUpRight} tone="info" sub="running total" />
-          <FinStat label="Collection This Month" value={formatPHP(collectionThisMonth, { compact: true })} icon={TrendingUp} tone="success" />
-          <FinStat label="Collection This Year"  value={formatPHP(collectionThisYear, { compact: true })}  icon={TrendingUp} tone="success" sub="running total" />
-          <BankBalanceCard />
+      {/* ── Section 1a: Portfolio counts ── */}
+      <div>
+        <SectionLabel>Portfolio Overview</SectionLabel>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Total Clients"   value={String(counts.total_clients)} icon={UsersRound} hint="registered" />
+          <StatCard label="Active Accounts" value={String(counts.active)}        icon={Users}      hint="across all collectors" />
+          <StatCard label="New Loans"       value={String(counts.new)}           icon={UserPlus}   tone="info"   hint="active" />
+          <StatCard label="Reloan"          value={String(counts.renew)}         icon={Repeat}     tone="purple" hint="active" />
         </div>
       </div>
 
+      {/* ── Year-to-Date Collection Highlight ── */}
+      <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
+        {/* Accent bar */}
+        <div className="h-1 w-full bg-linear-to-r from-success via-success/60 to-primary/40" />
+        <div className="p-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1px_auto]">
+
+            {/* Left: number + progress */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5 text-success" />Year-to-Date Collections
+              </p>
+              <p className="mt-2 font-display text-5xl font-bold num text-success leading-none">
+                {formatPHP(financials.collected_this_year)}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">Total collected from January 1 to today</p>
+              <div className="mt-5 space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Annual target progress</span>
+                  <span className={`font-semibold num ${ytdRate >= 80 ? "text-success" : ytdRate >= 50 ? "text-warning" : "text-destructive"}`}>{ytdRate}%</span>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-border overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${ytdRate >= 80 ? "bg-success" : ytdRate >= 50 ? "bg-warning" : "bg-primary"}`}
+                    style={{ width: `${Math.max(ytdRate, ytdRate > 0 ? 2 : 0)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="hidden lg:block bg-border" />
+
+            {/* Right: mini chart + KPI pills */}
+            <div className="flex flex-col gap-4 lg:w-72">
+              <div className="h-24">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyCollection.slice(-7)} barSize={10} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <Bar dataKey="collected" radius={[4, 4, 0, 0]}
+                      fill="var(--success)"
+                      label={false}
+                    />
+                    <XAxis dataKey="month" hide />
+                    <Tooltip {...tooltipStyle()} formatter={(v: number) => formatPHP(v)} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-xl bg-muted/40 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground leading-tight">Expected YTD</p>
+                  <p className="mt-1 text-sm font-bold num">{formatPHP(ytdExpected, { compact: true })}</p>
+                </div>
+                <div className="rounded-xl bg-muted/40 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground leading-tight">Collection Rate</p>
+                  <p className={`mt-1 text-sm font-bold num ${ytdRate >= 80 ? "text-success" : ytdRate >= 50 ? "text-warning" : "text-destructive"}`}>{ytdRate}%</p>
+                </div>
+                <div className="rounded-xl bg-success/10 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground leading-tight">This Month</p>
+                  <p className="mt-1 text-sm font-bold num text-success">{formatPHP(financials.collected_this_month, { compact: true })}</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 1b: Risk & resolution — tinted cards ── */}
+      <div>
+        <SectionLabel>Risk &amp; Resolution</SectionLabel>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <RiskCard label="Reconstruct" value={counts.reconstruct} icon={RefreshCw}     hint="active accounts"    variant="orange" />
+          <RiskCard label="Overdue"     value={counts.overdue}     icon={AlertTriangle} hint="needs follow-up"    variant="warning" />
+          <RiskCard label="Past Due"    value={counts.past_due}    icon={AlertOctagon}  hint="critical accounts"  variant="destructive" />
+          <RiskCard label="Fully Paid"  value={counts.paid}        icon={CheckCircle2}  hint="all time total"     variant="success" />
+        </div>
+      </div>
+
+      {/* ── Section 2: Financial Summary + Overdue/Past Due Balances ── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-2xl border bg-card p-5 shadow-sm">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Financial Summary</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <FinStat label="Releases This Month" value={formatPHP(releasesThisMonth, { compact: true })} icon={ArrowUpRight} tone="info" />
+            <FinStat label="Releases This Year"  value={formatPHP(releasesThisYear, { compact: true })}  icon={ArrowUpRight} tone="info"    sub="running total" />
+            <BankBalanceCard />
+            <FinStat label="Collection This Month" value={formatPHP(financials.collected_this_month, { compact: true })} icon={TrendingUp} tone="success" />
+            <FinStat label="Collection Today"      value={formatPHP(financials.collected_today,      { compact: true })} icon={TrendingUp} tone="success" sub="daily collection" />
+            <FinStat label="Outstanding Balance"   value={formatPHP(financials.total_outstanding,    { compact: true })} icon={Wallet}    tone="default" sub="total portfolio" />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-2xl border bg-warning/5 p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-warning">Overdue Balance</p>
+                <p className="mt-1 font-display text-2xl font-semibold num text-warning">
+                  {formatPHP(financials.overdue_balance, { compact: true })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">{counts.overdue} overdue accounts</p>
+              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning/15 text-warning">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border bg-destructive/5 p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-destructive">Past Due Balance</p>
+                <p className="mt-1 font-display text-2xl font-semibold num text-destructive">
+                  {formatPHP(financials.past_due_balance, { compact: true })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">{counts.past_due} past-due accounts</p>
+              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+                <AlertOctagon className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 3: Efficiency + This Month's Releases by Type ── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Efficiency */}
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                <Gauge className="h-3.5 w-3.5" />Collection Efficiency
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Actual collected vs. expected target</p>
+            </div>
+            <Select value={effPeriod} onValueChange={(v) => setEffPeriod(v as EfficiencyPeriod)}>
+              <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">This Week</SelectItem>
+                <SelectItem value="this_month">This Month</SelectItem>
+                <SelectItem value="this_year">This Year</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="relative h-24 w-24 shrink-0">
+              <svg viewBox="0 0 36 36" className="h-24 w-24 -rotate-90">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--border)" strokeWidth="3" />
+                <circle
+                  cx="18" cy="18" r="15.9" fill="none"
+                  stroke={effPct >= 80 ? "var(--success)" : effPct >= 50 ? "var(--warning)" : "var(--destructive)"}
+                  strokeWidth="3"
+                  strokeDasharray={`${effPct} 100`}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center font-display text-xl font-bold num">{effPct}%</span>
+            </div>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex gap-3">
+                <span className="text-muted-foreground w-20">Collected</span>
+                <span className="font-semibold num text-success">{formatPHP(eff.collected, { compact: true })}</span>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-muted-foreground w-20">Expected</span>
+                <span className="font-semibold num">{formatPHP(eff.expected, { compact: true })}</span>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-muted-foreground w-20">Period</span>
+                <span className="font-medium">{eff.label}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* This Month's Releases by Type */}
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 mb-4">
+            <Calendar className="h-3.5 w-3.5" />This Month's Loan Releases
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "New Loan",    count: Number(thisMonthByType?.new_count ?? 0),         color: "text-info",        bg: "bg-info/10" },
+              { label: "Reloan",      count: Number(thisMonthByType?.reloan_count ?? 0),       color: "text-purple-500",  bg: "bg-purple-500/10" },
+              { label: "Reconstruct", count: Number(thisMonthByType?.reconstruct_count ?? 0),  color: "text-warning",     bg: "bg-warning/10" },
+              { label: "Total",       count: Number(thisMonthByType?.total_count ?? 0),        color: "text-primary",     bg: "bg-primary/10" },
+            ].map((item) => (
+              <div key={item.label} className={`rounded-xl p-4 ${item.bg}`}>
+                <p className="text-xs text-muted-foreground">{item.label}</p>
+                <p className={`mt-1 font-display text-3xl font-bold num ${item.color}`}>{item.count}</p>
+                <p className="text-xs text-muted-foreground">loans released</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 4: Charts ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ChartCard title="Loan account status" subtitle="Distribution across portfolio">
           <ResponsiveContainer width="100%" height={240}>
@@ -203,28 +462,166 @@ export function AdminDashboard() {
         </ChartCard>
       </div>
 
+      {/* ── Section 5: Collector Performance ── */}
       <div className="rounded-2xl border bg-card shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
           <div>
-            <h3 className="font-display text-base font-semibold">Borrower monitoring</h3>
-            <p className="text-xs text-muted-foreground">All active borrower accounts and loan health</p>
+            <h3 className="font-display text-base font-semibold">Collector Performance</h3>
+            <p className="text-xs text-muted-foreground">Collection targets vs. actuals — {collectorPeriodLabel[collectorPeriod]}</p>
+          </div>
+          <Select value={collectorPeriod} onValueChange={(v) => setCollectorPeriod(v as CollectorPeriod)}>
+            <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="year">This Year</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="overflow-x-auto">
+          <Table className="min-w-200">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Collector</TableHead>
+                <TableHead>Area</TableHead>
+                <TableHead className="text-center">Clients</TableHead>
+                <TableHead className="text-right">Expected</TableHead>
+                <TableHead className="text-right">Collected</TableHead>
+                <TableHead className="text-right">Today</TableHead>
+                <TableHead className="text-right">This Month</TableHead>
+                <TableHead className="text-right">This Year</TableHead>
+                <TableHead>Rate</TableHead>
+                <TableHead className="text-center">Overdue</TableHead>
+                <TableHead className="text-center">Past Due</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stats.collector_stats.map((c) => {
+                const collected = collectorCollected(c, collectorPeriod);
+                const expected  = collectorExpected(c, collectorPeriod);
+                const rate      = effRate(collected, expected);
+                return (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{c.area}</TableCell>
+                    <TableCell className="text-center num">{c.assigned}</TableCell>
+                    <TableCell className="text-right num text-muted-foreground">{formatPHP(expected, { compact: true })}</TableCell>
+                    <TableCell className="text-right num font-semibold text-success">{formatPHP(collected, { compact: true })}</TableCell>
+                    <TableCell className="text-right num text-xs">{formatPHP(c.collected_today, { compact: true })}</TableCell>
+                    <TableCell className="text-right num text-xs">{formatPHP(c.collected_month, { compact: true })}</TableCell>
+                    <TableCell className="text-right num text-xs">{formatPHP(c.collected_year, { compact: true })}</TableCell>
+                    <TableCell className="min-w-32">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 flex-1 rounded-full bg-border overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${rate >= 80 ? "bg-success" : rate >= 50 ? "bg-warning" : "bg-destructive"}`}
+                            style={{ width: `${rate}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-medium num w-9 text-right">{rate}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {c.overdue > 0 ? <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning">{c.overdue}</span> : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {c.past_due > 0 ? <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">{c.past_due}</span> : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {stats.collector_stats.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={11} className="py-8 text-center text-sm text-muted-foreground">No collectors found.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      {/* ── Section 6: Leaderboard ── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Daily Leaderboard */}
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy className="h-4 w-4 text-yellow-500" />
+            <h3 className="font-display text-base font-semibold">Daily Collection Leaders</h3>
+          </div>
+          <div className="space-y-2">
+            {dailyLeaders.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No data yet today.</p>
+            ) : (
+              dailyLeaders.map((c, i) => (
+                <div key={c.id} className={`flex items-center gap-3 rounded-xl px-4 py-3 ${RANK_BG[i]}`}>
+                  <span className={`w-6 text-center text-sm font-bold ${RANK_COLORS[i]}`}>{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">{c.area}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold num text-success">{formatPHP(c.collected_today, { compact: true })}</p>
+                    <p className="text-xs text-muted-foreground">of {formatPHP(c.expected_daily, { compact: true })} expected</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Monthly Leaderboard */}
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy className="h-4 w-4 text-yellow-500" />
+            <h3 className="font-display text-base font-semibold">Monthly Collection Leaders</h3>
+          </div>
+          <div className="space-y-2">
+            {monthlyLeaders.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No data yet this month.</p>
+            ) : (
+              monthlyLeaders.map((c, i) => (
+                <div key={c.id} className={`flex items-center gap-3 rounded-xl px-4 py-3 ${RANK_BG[i]}`}>
+                  <span className={`w-6 text-center text-sm font-bold ${RANK_COLORS[i]}`}>{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">{c.area}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold num text-success">{formatPHP(c.collected_month, { compact: true })}</p>
+                    <p className="text-xs text-muted-foreground">of {formatPHP(c.expected_month, { compact: true })} expected</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 7: Client Monitoring ── */}
+      <div className="rounded-2xl border bg-card shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+          <div>
+            <h3 className="font-display text-base font-semibold">Client monitoring</h3>
+            <p className="text-xs text-muted-foreground">All active client accounts and loan health</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Input placeholder="Search client…" className="h-9 w-48" value={search} onChange={(e) => setSearch(e.target.value)} />
             <SelectTriggerSm value={statusFilter} onChange={setStatusFilter} placeholder="Status" options={[
-              { v: "all", l: "All status" }, { v: "new", l: "New Loaner" }, { v: "renew", l: "Renew Loaner" },
+              { v: "all", l: "All status" }, { v: "new", l: "New" }, { v: "renew", l: "Renew" },
               { v: "overdue", l: "Overdue" }, { v: "past-due", l: "Past Due" }, { v: "paid", l: "Fully Paid" },
             ]} />
             <SelectTriggerSm value={collectorFilter} onChange={setCollectorFilter} placeholder="Collector" options={[
               { v: "all", l: "All collectors" }, ...collectors.map((c) => ({ v: String(c.id), l: c.name })),
             ]} />
             <SelectTriggerSm value={typeFilter} onChange={setTypeFilter} placeholder="Loan type" options={[
-              { v: "all", l: "All types" }, { v: "new-loan", l: "New Loan" }, { v: "reloan", l: "Reloan" }, { v: "reconstruct", l: "Reconstruct" },
+              { v: "all", l: "All types" }, { v: "new-loan", l: "New Loan" },
+              { v: "reloan", l: "Reloan" }, { v: "reconstruct", l: "Reconstruct" },
             ]} />
           </div>
         </div>
         <div className="overflow-x-auto">
-          <Table className="min-w-225">
+          <Table className="min-w-250">
             <TableHeader>
               <TableRow>
                 <TableHead>Client</TableHead>
@@ -233,6 +630,8 @@ export function AdminDashboard() {
                 <TableHead className="text-right">Receivable</TableHead>
                 <TableHead className="text-right">Daily</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Collector</TableHead>
               </TableRow>
@@ -246,13 +645,15 @@ export function AdminDashboard() {
                   <TableCell className="text-right num">{formatPHP(l.total_receivable)}</TableCell>
                   <TableCell className="text-right num">{formatPHP(l.daily_payment)}</TableCell>
                   <TableCell className="text-right num font-semibold">{formatPHP(l.current_balance)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{l.due_date ? formatDate(l.due_date) : "—"}</TableCell>
+                  <TableCell><StatusBadge status={l.loan_type} /></TableCell>
                   <TableCell><StatusBadge status={l.status} /></TableCell>
                   <TableCell className="text-muted-foreground">{l.collector.name}</TableCell>
                 </TableRow>
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
                     No accounts match your filters.
                   </TableCell>
                 </TableRow>
@@ -261,6 +662,49 @@ export function AdminDashboard() {
           </Table>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ── Local helpers ── */
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
+        {children}
+      </span>
+      <div className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+type RiskVariant = "orange" | "warning" | "destructive" | "success";
+
+const riskStyles: Record<RiskVariant, { border: string; bg: string; icon: string; label: string }> = {
+  orange:      { border: "border-orange-200 dark:border-orange-900/40",    bg: "bg-orange-50/70 dark:bg-orange-950/20",   icon: "bg-orange-100 text-orange-500 dark:bg-orange-900/40 dark:text-orange-400", label: "text-orange-600 dark:text-orange-400" },
+  warning:     { border: "border-warning/35",     bg: "bg-warning/5",      icon: "bg-warning/15 text-warning",            label: "text-warning" },
+  destructive: { border: "border-destructive/30", bg: "bg-destructive/5",  icon: "bg-destructive/10 text-destructive",    label: "text-destructive" },
+  success:     { border: "border-success/30",     bg: "bg-success/5",      icon: "bg-success/10 text-success",            label: "text-success" },
+};
+
+function RiskCard({ label, value, icon: Icon, hint, variant }: {
+  label: string; value: number; icon: React.ElementType;
+  hint: string; variant: RiskVariant;
+}) {
+  const s = riskStyles[variant];
+  return (
+    <div className={`rounded-2xl border ${s.border} ${s.bg} p-5 shadow-sm transition hover:shadow-md`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="space-y-1">
+          <p className={`text-xs font-medium uppercase tracking-wide ${s.label}`}>{label}</p>
+          <p className="font-display text-2xl font-semibold tracking-tight num">{value}</p>
+        </div>
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${s.icon}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">{hint}</p>
     </div>
   );
 }

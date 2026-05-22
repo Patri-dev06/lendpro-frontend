@@ -94,7 +94,7 @@ export function ManagerDashboard() {
         subtitle="Portfolio performance and collection effectiveness"
         actions={
           <Button asChild className="bg-primary text-primary-foreground hover:bg-primary-glow">
-            <Link to="/loans"><Plus className="mr-1.5 h-4 w-4" />Create new loan</Link>
+            <Link to="/loans" search={{ clientId: undefined }}><Plus className="mr-1.5 h-4 w-4" />Create new loan</Link>
           </Button>
         }
       />

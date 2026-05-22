@@ -112,8 +112,8 @@ function SettingsPage() {
       toast.error("Interest rate must be between 0 and 100.");
       return;
     }
-    if (isNaN(scNum) || scNum < 0) {
-      toast.error("Service charge must be 0 or greater.");
+    if (isNaN(scNum) || scNum < 0 || scNum > 100) {
+      toast.error("Processing fee rate must be between 0 and 100%.");
       return;
     }
     if (termOptions.length === 0) {
@@ -208,18 +208,21 @@ function SettingsPage() {
             </p>
           </Field>
 
-          <Field label="Default service / processing fee (₱)">
+          <Field label="Default processing fee rate (%)">
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₱</span>
               <Input
-                type="number" min={0} step={1}
+                type="number" min={0} max={100} step={0.1}
                 value={serviceCharge}
                 onChange={(e) => setServiceCharge(e.target.value)}
                 disabled={!canEdit}
-                className="pl-7"
+                className="pr-8"
                 placeholder="0"
               />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
             </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              e.g. 5% on a ₱10,000 principal = ₱500 processing fee auto-filled.
+            </p>
           </Field>
 
           <div className="space-y-2">

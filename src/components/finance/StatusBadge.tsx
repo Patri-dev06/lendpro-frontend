@@ -15,8 +15,8 @@ const styles: Record<string, string> = {
 };
 
 const labels: Record<string, string> = {
-  new: "New Loaner",
-  renew: "Renew Loaner",
+  new: "New Loan",
+  renew: "Reloan",
   overdue: "Overdue +3 Days",
   "past-due": "Past Due +30 Days",
   paid: "Fully Paid",
