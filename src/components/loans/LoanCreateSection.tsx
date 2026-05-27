@@ -11,6 +11,7 @@ import { SearchableCombobox } from "@/components/shared/SearchableCombobox";
 import { DateInput } from "@/components/shared/DateInput";
 import { formatPHP, formatDate, addNonSundayDays } from "@/lib/format";
 import { LOAN_TYPE_LABELS, type LoanType } from "@/lib/loan-constants";
+import { getTermInterestRate, calcInterest, calcServiceCharge, calcDailyPayment } from "@/lib/loan-calc";
 import { printTILA, printInvoice, printLoanForm } from "@/lib/loan-prints";
 import { apiRequest } from "@/lib/api";
 import { toast } from "sonner";
@@ -127,8 +128,7 @@ export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Pro
       const defaultTerm = terms.includes(45) ? 45 : terms[0];
       setTermDays(defaultTerm);
 
-      const termRate = defaultTerm === 30 ? 5 : defaultTerm === 45 ? 7.5 : defaultTerm === 60 ? 10 : Math.round((defaultTerm / 30) * 5 * 10) / 10;
-      const defaultInterest = Math.round(10000 * termRate / 100);
+      const defaultInterest = calcInterest(10000, defaultTerm);
       setInterest(defaultInterest);
       recalcDailyRaw(10000, defaultInterest, defSc, defaultTerm);
 
@@ -154,16 +154,8 @@ export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Pro
   const totalReceivable = totalLoanAmount + sc;
   const dueDate = date ? addNonSundayDays(date, termDays + holidayCount, holidays) : null;
 
-  function getTermInterestRate(t: number): number {
-    if (t === 30) return 5;
-    if (t === 45) return 7.5;
-    if (t === 60) return 10;
-    return Math.round((t / 30) * 5 * 10) / 10;
-  }
-
   function recalcDailyRaw(p: number, i: number, s: number, t: number) {
-    const tr = p + i + s;
-    if (t > 0 && tr > 0) setDaily(Math.ceil(tr / t));
+    setDaily(calcDailyPayment(p + i + s, t));
   }
 
   function recalcDaily(p: number, i: number, s: number, t: number) {
@@ -172,8 +164,8 @@ export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Pro
 
   function handlePrincipalChange(p: number) {
     setPrincipal(p);
-    const autoInterest = Math.round(p * getTermInterestRate(termDays) / 100);
-    const autoSc = Math.round(p * defaultScRate / 100);
+    const autoInterest = calcInterest(p, termDays);
+    const autoSc = calcServiceCharge(p, defaultScRate);
     setInterest(autoInterest);
     setSc(autoSc);
     recalcDaily(p, autoInterest, autoSc, termDays);
@@ -182,7 +174,7 @@ export function LoanCreateSection({ token, onLoanCreated, initialClientId }: Pro
 
   function handleTermChange(t: number) {
     setTermDays(t);
-    const autoInterest = Math.round(principal * getTermInterestRate(t) / 100);
+    const autoInterest = calcInterest(principal, t);
     setInterest(autoInterest);
     recalcDaily(principal, autoInterest, sc, t);
   }

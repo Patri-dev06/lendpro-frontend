@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { LOAN_TYPE_LABELS, TERM_OPTIONS } from "./loan-constants";
+import { calcTotalReceivable, calcDailyPayment, calcEfficiencyRate } from "./loan-calc";
 
 describe("LOAN_TYPE_LABELS", () => {
   it("maps new-loan to 'New Loan'", () => {
@@ -36,39 +37,21 @@ describe("TERM_OPTIONS", () => {
   });
 });
 
-describe("loan calculation helpers", () => {
-  // These mirror the logic used in the loan creation form
-
-  function calcTotalReceivable(principal: number, interestRate: number, processingFeeRate: number) {
-    const interest = principal * interestRate;
-    const fee = principal * processingFeeRate;
-    return principal + interest + fee;
-  }
-
-  function calcDailyPayment(totalReceivable: number, term: number) {
-    return totalReceivable / term;
-  }
-
-  function calcEfficiencyRate(collected: number, expected: number) {
-    if (expected <= 0) return 0;
-    return Math.min(100, Math.round((collected / expected) * 100));
-  }
-
+describe("loan calculation helpers (via loan-calc)", () => {
   it("calculates total receivable correctly", () => {
-    // ₱10,000 principal, 5% interest, 2% processing fee
-    expect(calcTotalReceivable(10000, 0.05, 0.02)).toBe(10700);
+    // ₱10,000 principal, ₱500 interest (5%), ₱200 processing fee (2%)
+    expect(calcTotalReceivable(10000, 500, 200)).toBe(10700);
   });
 
-  it("calculates daily payment correctly", () => {
-    // ₱10,700 over 30 days
-    expect(calcDailyPayment(10700, 30)).toBeCloseTo(356.67, 2);
+  it("daily payment rounds UP — ₱10,700 / 30 days = 357", () => {
+    expect(calcDailyPayment(10700, 30)).toBe(357);
   });
 
-  it("calculates daily payment for 45 days", () => {
-    expect(calcDailyPayment(10750, 45)).toBeCloseTo(238.89, 2);
+  it("daily payment rounds UP — ₱10,750 / 45 days = 239", () => {
+    expect(calcDailyPayment(10750, 45)).toBe(239);
   });
 
-  it("calculates daily payment for 60 days", () => {
+  it("daily payment divides evenly — ₱10,800 / 60 days = 180", () => {
     expect(calcDailyPayment(10800, 60)).toBe(180);
   });
 

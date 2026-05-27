@@ -10,6 +10,7 @@ import { BalanceCard } from "@/components/payments/BalanceCard";
 import { apiRequest } from "@/lib/api";
 import { useRole } from "@/lib/role-context";
 import { formatPHP, formatDate } from "@/lib/format";
+import { calcNewBalance } from "@/lib/loan-calc";
 import { toast } from "sonner";
 
 interface ApiLoan {
@@ -53,7 +54,7 @@ export function DirectInputTab() {
   const [saving, setSaving]     = useState(false);
 
   const selectedLoan = loans.find((l) => l.id === selectedLoanId);
-  const newBalance   = Math.max(0, (selectedLoan?.current_balance ?? 0) - amount);
+  const newBalance   = calcNewBalance(selectedLoan?.current_balance ?? 0, amount);
 
   const loadData = useCallback(async () => {
     if (!token) return;
