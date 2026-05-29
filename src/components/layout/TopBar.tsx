@@ -7,15 +7,14 @@ import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-  DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
-import { ROLE_LABELS, useRole, type Role } from "@/lib/role-context";
+import { ROLE_LABELS, useRole } from "@/lib/role-context";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { formatDate } from "@/lib/format";
 
 export function TopBar() {
   const navigate = useNavigate();
-  const { role, setRole, user, logout } = useRole();
+  const { role, user, logout } = useRole();
   const displayName = user?.name ?? "User";
   const initials = displayName.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
 
@@ -85,16 +84,6 @@ export function TopBar() {
                 </div>
               </div>
             </DropdownMenuLabel>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Preview role view</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={role} onValueChange={(v) => setRole(v as Role)}>
-              {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
-                <DropdownMenuRadioItem key={r} value={r} className="text-sm">
-                  {ROLE_LABELS[r]}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
 
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

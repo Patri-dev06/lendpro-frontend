@@ -12,6 +12,6 @@ export const Route = createFileRoute("/_app/")({
 function DashboardSwitch() {
   const { role } = useRole();
   if (role === "collector") return <CollectorDashboard />;
-  if (role === "manager" || role === "sysadmin") return <ManagerDashboard />;
+  if (role === "manager" || role === "sysadmin" || role === "accounting_clerk") return <ManagerDashboard />;
   return <AdminDashboard />;
 }
