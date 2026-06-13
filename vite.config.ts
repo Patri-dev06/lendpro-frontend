@@ -33,5 +33,6 @@ export default defineConfig(({ command }) => ({
   server: {
     host: "::",
     port: 8200,
+    allowedHosts: ["lendpro.dostcaraga.ph"],
   },
 }));
